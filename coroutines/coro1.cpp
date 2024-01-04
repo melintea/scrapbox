@@ -85,7 +85,7 @@ class [[nodiscard]] AudioDataResult final
                 // Awaiter interface: for consumer waiting on data being ready
                 struct AudioDataAwaiter
                 {
-                    explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {}
+                    explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {FUNC();}
 
                         bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
 
@@ -122,14 +122,17 @@ class [[nodiscard]] AudioDataResult final
         AudioDataResult(const AudioDataResult&) = delete;
         AudioDataResult& operator=(const AudioDataResult&) = delete;
 
-        AudioDataResult(AudioDataResult&& other) noexcept: handle_(std::exchange(other.handle_, nullptr)){}
+        AudioDataResult(AudioDataResult&& other) noexcept: handle_(std::exchange(other.handle_, nullptr)) {FUNC();}
         AudioDataResult& operator=(AudioDataResult&& other) noexcept
         {
+            FUNC();
             using namespace std;
             AudioDataResult tmp = std::move(other);
             swap(*this, tmp);
             return *this;
         }
+
+        AudioDataResult() {FUNC();}
 
         // d-tor: RAII
         ~AudioDataResult() { if (handle_) {FUNC(); handle_.destroy();}}
