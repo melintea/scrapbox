@@ -6,7 +6,7 @@
 #include <vector>
 #include <coroutine>
 #include <chrono>
-//#include <format>
+#include <format>
 #include <source_location>
 #include <string_view>
 #include <thread>
@@ -25,12 +25,8 @@ namespace
              const std::source_location location = std::source_location::current())
     {
         // TODO: use lock
-	// no <format> yet
-	//std::clog << std::format("T:{} {}:{}: {} \n",
-	//                         std::this_thread::get_id(),
-	//			 location.function_name(),
-	//			 ocation.line(),
-	//			 message);
+	std::clog << std::format("T:{}: {}:{} \n", 
+	                                                                                                                                                                                                                                                                              std::this_thread::get_id(), location.function_name(), location.line(), message);
         std::clog //<< location.file_name() << '('
                   //<< location.column() << ") `"
 		  << std::hex << std::this_thread::get_id() << ": " << std::dec

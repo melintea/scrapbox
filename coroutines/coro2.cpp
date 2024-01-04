@@ -6,6 +6,9 @@
 #include <vector>
 #include <coroutine>
 #include <chrono>
+//#include <format>
+#include <source_location>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <functional>
@@ -16,11 +19,38 @@
 
 
 
-//s TODO: use lock
-#define FUNC() std::cout << "T:" << std::hex << std::this_thread::get_id() << ": " << __func__ << ':' << std::dec << __LINE__ << '\n'
-
-namespace details
+namespace 
 {
+    void log(const std::string_view message,
+             const std::source_location location = std::source_location::current())
+    {
+        // TODO: use lock
+	// no <format> yet
+	//std::clog << std::format("T:{} {}:{}: {} \n",
+	//                         std::this_thread::get_id(),
+	//			 location.function_name(),
+	//			 ocation.line(),
+	//			 message);
+        std::clog //<< location.file_name() << '('
+                  //<< location.column() << ") `"
+		  << std::hex << std::this_thread::get_id() << ": " << std::dec
+                  << location.function_name() << ": "
+                  << location.line() << ':'
+                  << message << '\n'
+		  ;
+    }
+    void log(const std::source_location location = std::source_location::current())
+    {
+        std::clog //<< location.file_name() << '('
+                  //<< location.column() << ") `"
+		  << std::hex << std::this_thread::get_id() << ": " << std::dec
+                  << location.function_name() << ": "
+                  << location.line() 
+		  << '\n'
+		  ;
+    }
+
+
     template <typename InputIterator>
     void printIterable(InputIterator first, InputIterator last)
     {
@@ -42,7 +72,7 @@ namespace details
     {
         printIterable(std::cbegin(container), std::cend(container));
     }
-}
+} // namespace
 
 
 class [[nodiscard]] AudioDataResult final
@@ -87,7 +117,7 @@ class [[nodiscard]] AudioDataResult final
                     // Awaiter interface: for consumer waiting on data being ready
                     struct AudioDataAwaiter
                     {
-                        explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {FUNC();}
+                        explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {log();}
 
                         bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
 
@@ -123,23 +153,23 @@ class [[nodiscard]] AudioDataResult final
         AudioDataResult(const AudioDataResult&) = delete;
         AudioDataResult& operator=(const AudioDataResult&) = delete;
 
-        AudioDataResult(AudioDataResult&& other) noexcept: handle_(std::exchange(other.handle_, nullptr)) {FUNC();}
+        AudioDataResult(AudioDataResult&& other) noexcept: handle_(std::exchange(other.handle_, nullptr)) {log();}
         AudioDataResult& operator=(AudioDataResult&& other) noexcept
         {
-            FUNC();
+            log();
             using namespace std;
             AudioDataResult tmp = std::move(other);
             swap(*this, tmp);
             return *this;
         }
 
-        AudioDataResult() {FUNC();}
+        AudioDataResult() {log();}
 
         // d-tor: RAII
-        ~AudioDataResult() { if (handle_) {FUNC(); handle_.destroy();}}
+        ~AudioDataResult() { if (handle_) {log(); handle_.destroy();}}
 
         // For resuming the producer - at the point when the data are consumed
-        void resume() {if (not handle_.done()) { FUNC(); handle_.resume();}}
+        void resume() {if (not handle_.done()) { log(); handle_.resume();}}
 
 
     private:
@@ -154,7 +184,7 @@ using data_type = std::vector<int>;
 AudioDataResult producer(const data_type& data)
 {
     for (std::size_t i = 0; i < 5; ++i) {
-        FUNC();
+        log();
         co_yield data;
     }
     co_yield data_type{}; // exit criteria
@@ -166,11 +196,11 @@ AudioDataResult consumer(AudioDataResult& audioDataResult)
 {
     for(;;)
     {
-        FUNC();
+        log();
         const auto data = co_await static_cast<AudioDataResult::handle_type>(audioDataResult);
         if (data.empty()) {std::cout << "No data - exit!\n"; break;}
         std::cout << "  Data received:";
-        details::printContainer(data);
+        printContainer(data);
 
         audioDataResult.resume(); // resume producer
     }
