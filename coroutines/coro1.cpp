@@ -172,11 +172,11 @@ class [[nodiscard]] AudioDataResult final
 
 
     private:
-        AudioDataResult(handle_type handle) noexcept : handle_(handle) {}
+        AudioDataResult(handle_type handle) noexcept : handle_(handle) {log();}
 
     private:
     handle_type handle_;
-};
+}; // AudioDataResult
 
 
 using data_type = std::vector<int>;
