@@ -6,7 +6,14 @@
     C -> co_await ADR -> Awaiter(promise)::await_ready() -> await_resume() <--+
          ADR::resume() 
 	 co_await ADR -> Awaiter(promise)::await_ready() -> await_resume() -> ADR::resume
- */
+	   #1  0x0000555555556b1c in producer (frame_ptr=<optimized out>) at coro1.cpp:192 ----> co_yield
+	   #2  producer (data=...) at coro1.cpp:189
+	   #3  0x0000555555556efd in std::__n4861::coroutine_handle<AudioDataResult::promise_type>::resume (this=0x7fffffffe688) at /usr/include/c++/11/coroutine:231
+	   #4  AudioDataResult::resume (this=0x7fffffffe688) at coro1.cpp:177
+	   #5  AudioDataResult::resume (this=0x7fffffffe688) at coro1.cpp:177
+	   #6  consumer(_Z8consumerR15AudioDataResult.Frame *) (frame_ptr=0x7ffff0000b70) at coro1.cpp:210
+	   #7  0x0000555555557095 in consumer (audioDataResult=...) at coro1.cpp:200
+*/
 
 #include <iostream>
 #include <vector>
