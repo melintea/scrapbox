@@ -1,6 +1,12 @@
 /*
  * https://www.modernescpp.com/index.php/a-coroutines-based-single-consumer-single-producer-workflow-by-ljubic-damir/
  */
+/*
+    P -> get_retutn_type -> ADR(handle) -> co_yield -> yield_value -> <wait> -+
+    C -> co_await ADR -> Awaiter(promise)::await_ready() -> await_resume() <--+
+         ADR::resume() 
+	 co_await ADR -> Awaiter(promise)::await_ready() -> await_resume() -> ADR::resume
+ */
 
 #include <iostream>
 #include <vector>
@@ -14,7 +20,7 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
-#include <iterator>
+#include <iterator>s
 #include <atomic>
 
 
