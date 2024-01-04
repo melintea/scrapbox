@@ -16,7 +16,8 @@
 
 
 
-#define FUNC() std::cout << __func__ << '\n'
+//s TODO: use lock
+#define FUNC() std::cout << "T:" << std::this_thread::get_id() << ": " << __func__ << '\n'
 
 namespace details
 {
@@ -86,7 +87,7 @@ class [[nodiscard]] AudioDataResult final
                 {
                     explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {}
 
-                    bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
+                        bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
 
                     void await_suspend(handle_type) const
                     {
@@ -135,6 +136,7 @@ class [[nodiscard]] AudioDataResult final
 
         // For resuming the producer - at the point when the data are consumed
         void resume() {if (not handle_.done()) { FUNC(); handle_.resume();}}
+
 
     private:
         AudioDataResult(handle_type handle) noexcept : handle_(handle) {}

@@ -16,7 +16,8 @@
 
 
 
-#define FUNC() std::cout << __func__ << '\n'
+//s TODO: use lock
+#define FUNC() std::cout << "T:" << std::this_thread::get_id() << ": " << __func__ << '\n'
 
 namespace details
 {
@@ -49,24 +50,24 @@ class [[nodiscard]] AudioDataResult final
     public:
         class promise_type;
         using handle_type = std::coroutine_handle<promise_type>;
-        
+
         // Predefined interface that has to be specify in order to implement
         // coroutine's state-machine transitions
-        class promise_type 
+        class promise_type
         {
-            
+
             public:
-                
+
                 using value_type = std::vector<int>;
 
-                AudioDataResult get_return_object() 
+                AudioDataResult get_return_object()
                 {
                     return AudioDataResult{handle_type::from_promise(*this)};
                 }
                 std::suspend_never initial_suspend() noexcept { return {}; }
                 std::suspend_always final_suspend() noexcept { return {}; }
                 void return_void() {}
-                void unhandled_exception() 
+                void unhandled_exception()
                 {
                     std::rethrow_exception(std::current_exception());
                 }
@@ -74,56 +75,56 @@ class [[nodiscard]] AudioDataResult final
                 // Generates the value and suspend the "producer"
                 template <typename Data>
                 requires std::convertible_to<std::decay_t<Data>, value_type>
-                std::suspend_always yield_value(Data&& value) 
+                std::suspend_always yield_value(Data&& value)
                 {
                     data_ = std::forward<Data>(value);
-                    data_ready_.store(true, std::memory_order_release);
+                    data_ready_.store(true, std::memory_order::release);
                     return {};
                 }
 
-                auto await_transform(handle_type other) 
+                auto await_transform(handle_type other)
                 {
                     // Awaiter interface: for consumer waiting on data being ready
-                    struct AudioDataAwaiter 
+                    struct AudioDataAwaiter
                     {
                         explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {}
 
-                        bool await_ready() const { return promise_.data_ready_.load(std::memory_order_acquire);}
-                        
+                        bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
+
                         void await_suspend(handle_type) const
                         {
                             while(not promise_.data_ready_.exchange(false)) {
-                                std::this_thread::yield(); 
+                                std::this_thread::yield();
                             }
                         }
-                        
-                        value_type&& await_resume() const 
+
+                        value_type&& await_resume() const
                         {
                             return std::move(promise_.data_);
                         }
 
-                        private: 
+                        private:
                             promise_type& promise_;
                     };//Awaiter interface
 
                     return AudioDataAwaiter{other.promise()};
                 }
 
-        
+
             private:
                 value_type data_;
                 std::atomic<bool> data_ready_;
         }; //promise_type interface
 
         explicit operator handle_type() const { return handle_;}
-              
-        
+
+
         // Make the result type move-only, due to ownership over the handle
         AudioDataResult(const AudioDataResult&) = delete;
         AudioDataResult& operator=(const AudioDataResult&) = delete;
 
         AudioDataResult(AudioDataResult&& other) noexcept: handle_(std::exchange(other.handle_, nullptr)){}
-        AudioDataResult& operator=(AudioDataResult&& other) noexcept 
+        AudioDataResult& operator=(AudioDataResult&& other) noexcept
         {
             using namespace std;
             AudioDataResult tmp = std::move(other);
@@ -137,7 +138,7 @@ class [[nodiscard]] AudioDataResult final
         // For resuming the producer - at the point when the data are consumed
         void resume() {if (not handle_.done()) { FUNC(); handle_.resume();}}
 
-            
+
     private:
         AudioDataResult(handle_type handle) noexcept : handle_(handle) {}
 
@@ -147,7 +148,7 @@ class [[nodiscard]] AudioDataResult final
 
 
 using data_type = std::vector<int>;
-AudioDataResult producer(const data_type& data) 
+AudioDataResult producer(const data_type& data)
 {
     for (std::size_t i = 0; i < 5; ++i) {
         FUNC();
@@ -158,7 +159,7 @@ AudioDataResult producer(const data_type& data)
     co_return;
 }
 
-AudioDataResult consumer(AudioDataResult& audioDataResult) 
+AudioDataResult consumer(AudioDataResult& audioDataResult)
 {
     for(;;)
     {
@@ -173,7 +174,7 @@ AudioDataResult consumer(AudioDataResult& audioDataResult)
     co_return;
 }
 
-int main() 
+int main()
 {
     {
         const data_type data = {1, 2, 3, 4};
