@@ -17,7 +17,7 @@
 
 
 //s TODO: use lock
-#define FUNC() std::cout << "T:" << std::this_thread::get_id() << ": " << __func__ << '\n'
+#define FUNC() std::cout << "T:" << std::hex << std::this_thread::get_id() << ": " << __func__ << ':' << std::dec << __LINE__ << '\n'
 
 namespace details
 {
@@ -166,7 +166,7 @@ AudioDataResult consumer(AudioDataResult& audioDataResult)
         FUNC();
         const auto data = co_await static_cast<AudioDataResult::handle_type>(audioDataResult);
         if (data.empty()) {std::cout << "No data - exit!\n"; break;}
-        std::cout << "Data received:";
+        std::cout << "  Data received:";
         details::printContainer(data);
 
         audioDataResult.resume(); // resume producer
