@@ -77,7 +77,7 @@ class [[nodiscard]] AudioDataResult final
                 std::suspend_always yield_value(Data&& value)
                 {
                     data_ = std::forward<Data>(value);
-                    data_ready_.store(true, std::memory_order::relaxed);
+                    data_ready_.store(true, std::memory_order::release);
                     return {};
                 }
 
@@ -86,7 +86,7 @@ class [[nodiscard]] AudioDataResult final
                 {
                     explicit AudioDataAwaiter(promise_type& promise) noexcept: promise_(promise) {}
 
-                    bool await_ready() const { return promise_.data_ready_.load(std::memory_order::relaxed);}
+                    bool await_ready() const { return promise_.data_ready_.load(std::memory_order::acquire);}
 
                     void await_suspend(handle_type) const
                     {
