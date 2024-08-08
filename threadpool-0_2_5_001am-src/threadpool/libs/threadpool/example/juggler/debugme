@@ -1,0 +1,4 @@
+#!/bin/sh
+
+gdb ../../../../bin.v2/libs/threadpool/example/juggler/gcc-4.1.2/debug/link-static/threading-multi/juggler
+

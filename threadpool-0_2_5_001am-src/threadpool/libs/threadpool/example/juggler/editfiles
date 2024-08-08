@@ -1,0 +1,22 @@
+#!/bin/bash
+
+nedit -tags ../../../../tags \
+../../../../../threadpool/libs/threadpool/example/mergesort/mergesort.cpp \
+../../../../../threadpool/libs/threadpool/example/juggler/juggler.cpp \
+../../../../../threadpool/libs/threadpool/quickstart/quickstart.cpp \
+../../../../../threadpool/libs/threadpool/test/compile_all/compile_all.cpp \
+../../../../../threadpool/libs/threadpool/tutorial/tutorial.cpp \
+../../../../../threadpool/boost/threadpool.hpp \
+../../../../../threadpool/boost/threadpool/detail/future.hpp \
+../../../../../threadpool/boost/threadpool/detail/locking_ptr.hpp \
+../../../../../threadpool/boost/threadpool/detail/pool_core.hpp \
+../../../../../threadpool/boost/threadpool/detail/scope_guard.hpp \
+../../../../../threadpool/boost/threadpool/detail/worker_thread.hpp \
+../../../../../threadpool/boost/threadpool/future.hpp \
+../../../../../threadpool/boost/threadpool/pool.hpp \
+../../../../../threadpool/boost/threadpool/pool_adaptors.hpp \
+../../../../../threadpool/boost/threadpool/scheduling_policies.hpp \
+../../../../../threadpool/boost/threadpool/shutdown_policies.hpp \
+../../../../../threadpool/boost/threadpool/size_policies.hpp \
+../../../../../threadpool/boost/threadpool/task_adaptors.hpp \
+./active.hpp

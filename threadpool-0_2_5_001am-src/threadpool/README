@@ -1,0 +1,12 @@
+threadpool
+
+Copyright (c) 2005-2007 Philipp Henkel
+
+threadpool is a cross-platform C++ thread pool library and released under the Boost Software License. 
+
+See doc/index.html for information on:
+  - API documentation and a tutorial
+  - External dependencies
+  - Using threadpool
+  
+  Version 0.2.5 modified by Aurelian Melinte

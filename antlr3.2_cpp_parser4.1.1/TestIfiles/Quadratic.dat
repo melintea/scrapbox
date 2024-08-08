@@ -1,0 +1,13 @@
+Centre for Systems and Software Engineering
+London South Bank University
+
+ANTLR C++ Parsing Project
+Version 4.1 - October 2012
+
+Program to demonstrate subclassing of application code
+
+Parse TestIfiles\Quadratic.i Fri Nov 02 16:41:05 2012
+
+See list of 687 functions in TestIfiles\Quadratic.lis
+
+Also see optional list in TestIfiles\Quadratic.log

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+export BOOST_ROOT=//builds/aurelian_melinte/boost_1_47_0
+
+rm ../../../../bin.v2/libs/threadpool/example/juggler/gcc-4.1.2/debug/link-static/threading-multi/juggler
+/builds/aurelian_melinte/boost_1_47_0/bjam
+../../../../bin.v2/libs/threadpool/example/juggler/gcc-4.1.2/debug/link-static/threading-multi/juggler
+
