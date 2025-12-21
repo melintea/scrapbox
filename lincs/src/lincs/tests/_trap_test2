@@ -1,0 +1,70 @@
+#! /bin/sh 
+
+#set -x
+
+#
+# Repeat ad nauseam requests to daemon. Has to stay alive.  
+#
+
+#
+# Config section.  
+#
+
+export CFGSINSTALL="/tmp/$USER/confi"
+export CFGS_TST_PREFIX='/tests'
+export TSTDIR=`pwd`
+
+#overwrite defaults
+if test -f ./tests.config; then
+    . ./tests.config
+fi
+
+
+#
+# Might be difficult to get the daemon started if compiled with
+# RANDOM_NULL
+#
+while [ 1 ]; do
+    ./run_command $CFGSINSTALL/bin/cfgs_configd
+    sleep 3
+    dpid=`pidof cfgs_configd`
+    if test x"$dpid" != x""; then 
+        $TSTDIR/print_red "**** cfgs_configd started: $dpid"
+        break 
+    fi
+done
+
+
+
+KEEP_RUNNING='./.run_stress'
+touch $KEEP_RUNNING
+
+#
+# needs bash!
+#
+trap sigint_trap 2
+echo "** "
+echo "** $0: press Ctrl-C to stop "
+echo "**"
+
+
+sigint_trap()
+{
+    echo "*** $0 exit..."
+    kill $dpid
+    rm $KEEP_RUNNING
+    exit
+}
+
+
+
+while test -f $KEEP_RUNNING; do
+    echo "$0 running..." 
+
+    if test -f ./core; then
+        echo "**** Core dumped !"
+        exit 1
+    fi
+    sleep 1
+done
+

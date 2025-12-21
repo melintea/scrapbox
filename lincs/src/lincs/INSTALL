@@ -1,0 +1,35 @@
+Basic Installation
+==================
+
+NOTE: this will change in future versions: all files should belong to a 
+special user, say 'lincs' and all users on the system should be part of 
+group 'lincs'. User's 'lincs' account should be special: no shell, no login 
+possible, etc. This is work in progress. 
+
+
+3 easy steps:
+
+    ./configure
+    make
+
+Switch to root and enter:
+
+    make install
+
+Eventually test it:
+
+    make test
+
+
+Components
+----------
+
+- binaries and configuration information is stored under /etc/lincs, unless
+  you changed the installation prefix at configuration time. Those files
+  have to reside on the root filesystem because it is the only one 
+  guaranteed to be available. 
+
+- header files are stored by default in /usr/local/include/cfgs
+
+- log file is /tmp/lincs.log (FIXME)
+

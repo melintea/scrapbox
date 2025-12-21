@@ -1,0 +1,5 @@
+Version 0.2 [13 Apr 2004]
+ -using Unix sockets
+ -credential passing through socket
+ -bug fixing signal handling
+ -value namespace navigation

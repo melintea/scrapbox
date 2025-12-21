@@ -1,0 +1,23 @@
+#
+# Config vars affecting all Makefile
+#
+
+##
+## Set $(CFLAGS_EXTRA), $(LDFLAGS_EXTRA) env vars to alter all the binaries 
+## of the build.
+## 
+
+
+#                 -Wshadow -Wpointer-arith -Wwrite-strings \
+#                 -Wcast-qual -Wcast-align -Wconversion \
+# -Wstrict-prototypes -Wmissing-prototypes -DRANDOM_NULL  
+TOP_CFLAGS    =  -Wall -fexceptions \
+                 -D_GNU_SOURCE \
+                 -ggdb3 -rdynamic 
+
+TOP_INCLUDES  =  -I$(top_builddir) -I$(top_srcdir) -I$(top_srcdir)/tiger   \
+                 -I$(top_srcdir)/tvision/include
+
+TOP_LINKDIRS  =  \
+                 -L$(top_srcdir)/tvision/makes \
+                 -L/etc/lincs/lib 

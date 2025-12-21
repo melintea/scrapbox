@@ -1,0 +1,234 @@
+
+<h1>Architecture overview</h1>
+
+
+<h2> Goals </h2>
+<p>The configuration system should allow to:
+<ul>
+    <li> Be very light and self-contained, with zero dependencies on other 
+        packages/libraries </li>
+    <li> Allow to organize entries in layers and apply security policies to 
+        layers and individual entries </li>
+    <li> Allow applications to (un)subscribe to be notified when values are
+        changed </li>
+    <li> Allow a hierarchy of such config systems as to be able to manage
+        networks and clusters </li>
+    <li> Allow logging and backtracking to previous configurations </li>
+    <li> Be _very_ robust </li>
+    <!--<li> </li>-->
+</ul>
+
+
+
+<h2> First architectural draft (<a href="architecture.dia">dia diagram</a>)</h2>
+
+<p>The configuration system has the following components
+<table border="0" width="100%">
+  <tr>
+    <td width="100%"> <img src="arch.jpg" alt="LinCS Components"> </td>
+  </tr>
+  <tr>
+    <td width="100%"> <p align="center"> <font color="#0000FF"><b>
+        LinCS Components
+    </b> <br> </font></p> </td>
+  </tr>
+</table>
+
+<ul>
+  <li> The client library: Used by the applications to connect to the 
+       system and manipulate entries.  Please read <b>cfgs_client_api.h</b> for 
+       further details. <b>Library code needs inspection & testing for dealing 
+       with signal interruptions</b> - daemon is shielded from but client
+       applications are not. </li>
+  <li> The daemon: It loads the backends and handles the client queries
+       as to send back to the client the results of those queries.  Communication
+       between clients and daemon takes place over an xml-based protocol. </li>
+  <li> Backends that manage entry repositories and/or other pertinent 
+       information sources, such as other config daemons, LDAP repositories, 
+       etc.  Some backends are distinguished from the crowd:
+       <ul>
+           <li> The stacker backends manages other subordinates backends. </li>
+           <li> Some backends can be loaded directly by the client library: 
+                the bootstrap backends.  One such backend is the <b>cfgs_fs_bk</b>
+                that uses the Unix filesystem as an entry repository. </li>
+           <li> A backend allowing to communicate from daemon to daemon so that
+                hierarchies of machines can be established and clusters can be 
+                managed from a central place. </li>
+       </ul>   </li>
+       By adding backends to the system, one can extend it to use other information
+       storage systems (ex: LDAP).  
+  <li> An <a href="emul.jpg">emulation library</a> that allows older programs to work with 
+       the new system transparently. 
+       This library intercepts calls such as <i>open(2)</i> and regenerate the 
+       appropriate /etc file on the fly. </li>
+  <li> <i>cfgs_cat</i> - the tool to regenerate /etc files </li>
+  <li> A tool library used by other components <b>(Same note on signal interruptions as
+       for the client library).</b></li>
+  <!--<li> </li>-->
+</ul>
+
+<p>There are two functional modes:
+<ul>
+  <li> bootstrap mode: the client library loads itself a few backends
+       that will handle the requests.  The mode is intended only for
+       OS boot time. </li>
+  <li> normal mode: all requests are handled by the daemon</li>
+</ul>
+
+<table border="0" width="100%">
+  <tr>
+    <td width="100%"> <img src="boot.jpg" alt="Bootstrap Mode"> </td>
+  </tr>
+  <tr>
+    <td width="100%"> <p align="center"> <font color="#0000FF"><b>
+        Bootstrap Mode
+    </b> <br> </font></p> </td>
+  </tr>
+</table>
+
+<table border="0" width="100%">
+  <tr>
+    <td width="100%"> <img src="normal.jpg" alt="Normal/Daemon Mode"> </td>
+  </tr>
+  <tr>
+    <td width="100%"> <p align="center"> <font color="#0000FF"><b>
+        Normal/Daemon Mode
+    </b> <br> </font></p> </td>
+  </tr>
+</table>
+
+<p> It is completely transparent to the user which mode the system is 
+functioning - the API does not offer a choice presently, if the client API
+cannot contact the daemon it simply loads the bootstrap backends and tries
+to fulfill the request.  See a diagram sketching the 
+<a href="boot_use.dia">boot mode</a>.  
+
+<p> In the "daemon mode", the client library establishes a connection with 
+the daemon, transmits the request, receives the answer and shuts down the 
+connection. (It should be possible for applications to register for notifications
+without connecting first?).  Communication between client and server takes place
+over http, which in turn transmits requests and aswers embedded in xml entities.  
+See a diagram of the <a href="proto_use.dia">daemon mode</a>.  Design should 
+allow for an easy plug in of another carrying protocol.  
+
+<table border="0" width="100%">
+  <tr>
+    <td width="100%"> <img src="daemon.jpg" alt="cfgs_configd Components"> </td>
+  </tr>
+  <tr>
+    <td width="100%"> <p align="center"> <font color="#0000FF"><b>
+        cfgs_configd Components
+    </b> <br> </font></p> </td>
+  </tr>
+</table>
+
+<p> The daemon sports a thread that only handles signals while all others are
+blocking them - this improves robustness.  
+
+<p> Another thread specialises in delivering notifications on requests from the 
+other threads, that  are communicating their requests over a queue.  
+
+<p> <b>Current status:</b>
+</ul>
+  <li> Robustness tested daemon to signals and memory allocation failures. </li>
+  <li> Error reporting is not very accurate. </li>
+  <li> Has not been tested for concurency problems. </li>
+  <li> Notifications are delivered. </li>
+  <li> Client and tool libraries need signal interruption inspection and testing. </li>
+  <!--<li> </li>-->
+</ul>
+
+
+
+<h2> The communication protocol </h2>
+
+<p> The communication of requests and answers between the client and the daemon/server 
+is embedded into a xml messages based protocol, whose xml (in)accurate overview is 
+<a href="rpc.xml">here</a>.  
+
+The protocol itself has to be embedded into another protocol - the carrying 
+protocol.  Currently, the carrying protocol is http but another one can be
+plugged in instead.
+
+<p> The protocol is stateless.  A client can be an application or another server.  
+
+<p> To manipulate entries, the client sends a request message and the server simply 
+sends back the results and the error information in a message.  The xml answer is converted
+in the proper structures which, in turn, are passed to the calling application.  
+
+<p> To (un)register for notifications, the client sends the server a message stating
+which entries it is interested in and how to be notified (on registering only).  
+The server replies by sending back an error code/acknowledge.  
+
+<p> When an entry changes, the server sends a notification message to all registered
+applications for that entry.  No reply from the client is expected back.  
+
+<p> A <a href="protocol.dia">dia diagram</a> shows the programming structures 
+involved with the protocol in the first architectural draft.  
+
+
+<h2> Layering</h2>
+
+<p>Layers contain values and are used to implement machine-cluster and user-groups 
+administration policies. 
+
+<p>One valuename can appear in different layers.
+One client can specify explicitely from which layer the value has to be read or
+it can leave the "layer" attribute unspecified, in which case the value will
+be drawn from the layer having the utmost priority that contains the specified
+valuename. One client can write a value only if it explicitely specifies
+an existing layer. 
+
+<p>Only an administrator can create layers and assign them priorities.  The 
+"priority" attribute of a layer is a value from 0 to 255, 0 being the 
+uppermost priority. Layers 0, 1, 2 and 255 are reserved for (future) use 
+by LinCS. 
+
+<p> There are predefined layers: 
+<ul>
+    <li> <b>lincs</b>: this one is used by LinCS only to store its own values. 
+         This is needed because at startup information about layers
+         themselves has to be extracted from the system, among
+         others. It has priority of 1. </li>
+    <li> <b>user</b>. It has priority of 20. Unlike other layers, it is stored
+         in user's home under the folder .lincs. </li>
+    <li> <b>system</b>. It has priority of 100. User's can override system values
+         at their own risk. </li>
+</ul>
+
+
+<h2> Adapting for traditional applications</h2>
+
+<p>Since is will take some time for older applications to adapt to the new 
+configuration system, we should provide a system as to allow old apps to 
+live on a LinCS system.  This system does not requires applications to 
+recompile and it is completely transparent due to the LD_PRELOAD 
+mechanism.
+
+<p> If one configuration file is to be replaced, two executables have to 
+be provided as a replacement: 
+<ul>
+    <li>A reader. The reader will be placed under 
+        $LINCS_INSTALL_DIR/bin/readers/$FILENAME.  Reader writes the 
+        re-created file to stdout unless a filename command-line
+        argument specifies it in which case reader refuses to 
+        write to links. </li>
+    <li>A writer. The writer will be placed under 
+        $LINCS_INSTALL_DIR/bin/writers/$FILENAME.  Writer reads the data to
+        be parsed from stdin unless a filename command-line
+        argument specifies it. </li>
+</ul>
+
+
+<h2> Second architectural draft (<a href="architecture2.dia">dia diagram</a>)</h2>
+
+<p>&nbsp;
+
+
+<h2> Other documents</h2>
+
+<ul>
+    <li> <a href="usecases.dia">use cases</a></li>
+</ul>
+
+<p><br>

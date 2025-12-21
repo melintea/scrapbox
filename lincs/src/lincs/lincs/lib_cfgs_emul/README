@@ -1,0 +1,3 @@
+Emulation library.  A legacy application requiring traditional /etc 
+files can work seamlessly with LinCS by simply LD_PRELOAD-ing it.
+Basically, it intercepts the open() call.

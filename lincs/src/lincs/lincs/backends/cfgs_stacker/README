@@ -1,0 +1,4 @@
+cfgs_stacker is a priviledged backend that oversees other backends - such
+as the cfgs_fs_bk - and, thus, implements various system wide policies.
+It also allows backend hierarchisation (and eventually daemon hierarchisation), 
+thus allowing future developments.

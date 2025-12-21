@@ -1,0 +1,111 @@
+Content
+-------
+    - TODO
+    - Status
+    - Build
+    - Install
+    - Tests
+    - Credits
+
+
+TODO
+----
+-inspect & test lib code for dealing with signal interruptions
+-CGFS_SOCK_TOUT
+-configd: sigterm syslog -> daemon code
+-daemon random_null 
+-daemon cannot become session leader
+-getsid gcc warning
+-cleanup TEST_ERROR 
+-test protocol: garbage, incorrect length, invalid func call 
+error reporting 
+
+-FIXMEs
+-automake framework: package name/tarball ?
+-editeur glade 
+-document $(CFLAGS_EXTRA) $(LDFLAGS_EXTRA)
+-cleanup Makefiles.am of 'ifndef CFLAGS_EXTRA'
+
+
+
+Status
+------
+Plus ou moins fonctionnels:
+ cfgs_tool
+ cfgs_cat
+ cfgs_info
+ backends: fs, stacker
+ daemon
+ emulation lib
+
+
+
+Build 
+-----
+  ./tools/bootstrap.sh      (optional, you need tools - read HACKING)
+  ./configure --prefix=...  (by default: /tmp/$USER/confi)
+  make
+  make install 
+  
+See also Makefile.globals - you can define
+  $(CFLAGS_EXTRA) 
+  $(LDFLAGS_EXTRA)
+
+One such define is ONE_SHOT for debugging purposes - to suppress forking 
+and threading.
+
+
+
+Install
+-------
+  make install 
+
+By default, ir will install in /tmp/$USER/lincs.  Use --prefix options of the
+configure script to change those defaults.
+
+(FIXME: will change in the future to these):
+    -configuration data   under /etc/confi/entries
+    -confi binaries       under /etc/confi/bin
+    -confi log            under /var/??
+    -confi development 
+        -headers          under /usr/include/lincs
+        -libs             under /usr/lib/lincs
+
+In a normal installation, one should create first a user named lincs and 
+install the package as user lincs.  Then modify the lincs user account as to 
+have no shell and no home (so that if the lincs system breaks, root cannot be 
+compromised, much like user man, daemon, etc. under Debian). 
+
+Have binaries owned by root and runnable by any user and entries/ owned by 
+lincs user (readable by any?).  
+
+Start scripts have to be modified to automatically start the cfgs_configd 
+daemon and to preload the libemul.so emulating /etc files (FIXME).
+
+
+
+Tests
+-----
+  cd tests && make check => tests/run_tests
+OR
+  make test
+
+Note: make check fails for expat because it needs some extra packages installed,
+hence the 'make test'.  
+
+Read also: 
+  tests/tests.config 
+  tests/get_set_rm_val.tst
+        libemul.tst
+      
+Tests not included in the test harness:
+  daemon_stress
+  daemon_signal 
+    
+
+Credits
+-------
+LinCS code is based on ideas from Michel Dagenais (michel.dagenais@polymtl.ca). 
+I inspired myself from gconf on various occasions.
+
+

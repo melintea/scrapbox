@@ -1,0 +1,152 @@
+X-Persona: <ame01@gmx.net>
+Return-Path: <michel.dagenais@polymtl.ca>
+X-Flags: 0000
+Delivered-To: GMX delivery to ame01@gmx.net
+Received: (qmail 18122 invoked by uid 0); 9 Jan 2003 16:17:07 -0000
+Received: from smtp.polymtl.ca (132.207.4.11)
+  by mx0.gmx.net (mx007-rz3) with SMTP; 9 Jan 2003 16:17:07 -0000
+Received: from localhost.localdomain (www.m3.polymtl.ca [132.207.4.60])
+	by smtp.polymtl.ca (8.11.6/8.11.6) with ESMTP id h09GH5801490;
+	Thu, 9 Jan 2003 11:17:05 -0500
+Subject: Re: projet
+From: Michel Dagenais <michel.dagenais@polymtl.ca>
+To: Aurelian Melinte <ame01@gmx.net>
+Cc: Fabien Niñoles <fabien@tzone.org>
+In-Reply-To: <1.1.1.20030108211229.00a405a0@pop.gmx.net>
+References: <1.1.1.20030105110033.00a44b00@192.168.60.239>
+	<1.1.1.20030105110033.00a44b00@192.168.60.239> 
+	<1.1.1.20030108211229.00a405a0@pop.gmx.net>
+Content-Type: text/plain; charset=ISO-8859-1
+X-Mailer: Ximian Evolution 1.0.5 
+Date: 09 Jan 2003 11:49:11 -0500
+Message-Id: <1042130952.7887.135.camel@vaucluse>
+Mime-Version: 1.0
+X-GMX-Antivirus: -1 (not scanned, may not use virus scanner)
+
+
+> -une librairie d’emulation qui intercepte les appels open et ouvre à la 
+> place un «pipe» pour exécuter un utilitaire, cscat. Pour le moment, ceci 
+> semble suffisant
+
+En effet, il est mieux de conserver les adaptateurs pour les divers
+formats d'anciens fichiers /etc séparés dans des modules autonomes.
+Chaque module pourrait être un exécutable à executer avec popen par la
+librairie qui intercepte "open"; ce pourrait aussi être un fichier .so
+chargé par cscat, il faudrait alors que cscat recoive en argument le nom
+de fichier /etc à générer qui identifierait le fichier .so à charger.
+Le plus simple est probablement un simple script exécuté par popen et
+dont le nom correspond à celui du fichier de /etc à générer, par exemple
+/etc/confi/cat/modules.conf pour générer le contenu de
+/etc/modules.conf.
+ 
+> -une librairie d’outils, utilisée par les autres composantes 
+> (hash/liste/gestion mémoire/log/sockets/manipulation de texte:string, 
+> paire, tag/protocole)
+
+Il faut faire un peu attention ici. J'ai vu plusieurs modules qui font
+pas mal plus que ce qui est requis et donc ajoutent à la complexité
+naturellement. Heureusement il sera facile de revenir à la fin et
+élaguer les morceaux non essentiels.
+
+> -un seul module backend qui garde les valeurs dans des fichiers
+
+Tel que nous en avions discuté, chaque couche doit être conservée
+séparément pour facilement pouvoir être copiée d'un système à l'autre.
+
+> -la structure pour gérer les valeurs devrait être complètement 
+> retravaillée, justement pour supporter les schémas et les couches 
+> pleinement. Probablement aussi la notions de metadonnees, a la gconf a 
+> beaucoup de sens. Aussi, peut-être une liste d’attribut nom-valeur 
+> remplacerait le contenu proprement dit de la valeur, pour plus de génialité 
+> (cela semble se chevaucher un peu avec les autres composantes de la 
+> structure).
+
+Une seule valeur par "nom" avec une liste d'attributs extensibles peut
+être une bonne solution; cela permet de s'adapter aux besoins de
+supporter gconf, d'associer plus de description dans les template
+incluant des informations pour l'affichage dans l'éditeur (icône,
+contraintes...). Ainsi la méta information serait extensible, un peu
+comme les extended attributes de ext2. Par contre si on a plusieurs
+valeurs, c'est mieux d'avoir un répertoire qui contient ces valeurs.
+
+> -le paramètre «credentials» n’a pas vraiment de sens  plutôt un paramètre 
+> opaque «session»
+
+Normalement on peut reprendre un cadre déjà existant d'authentification,
+avec des listes d'accès:
+
+- pour les accès locaux, le uid peut être authentifié facilement,
+- pour les accès distants, les certificats peuvent être vérifiés avec
+SSL ou IPSEC.
+
+> -présentement l’API backend est la même que celle du client. Séparer les 
+> deux? (certains paramètres d’une fonctions de l’API ne semblent pas avoir 
+> du sens pour une API backend  par ex. credentials/session)
+
+On peut commencer avec le même API qui contient toutes les fonctions
+voulues pour ensuite ajouter des restrictions (fonction x pas accessible
+par un client ou un daemon, ou non offerte par un client, un daemon ou
+un backend)
+
+> -présentement, on passe autour du texte comme valeurs, cela a l’air d’etre 
+> suffisant. Nettoyer certaines structures qui prévoient un type pour la 
+> valeur (int, long, string, enum, etc?)
+
+Ce pourrait être suffisant de tout traiter en texte et d'avoir des
+spécifications plus précises disponibles pour l'éditeur. Le mieux est
+probablement de supporter les types de base, ce qui simplifie le client,
+et d'avoir néanmoins plus de précisions pour l'éditeur.
+
+> Le protocole: a remplacer complètement
+> -c’est en fait un surrogat, a jeter. Comme suggérée, on pourrait essayer de 
+> l’empaqueter dans du http
+
+Si c'est un sous-ensemble de http/XML/CSS, cela permet de consulter un
+daemon à partir d'un fureteur, ce qui sera certainement très apprécié.
+
+> -besoin de support pour pouvoir lister les enfants d’une «branche» dans 
+> l’arbre des valeurs et des expressions régulières sur le nom de valeurs 
+> (modifier API).
+
+Oui!
+
+> -déménager la fonctionnalité de reconstitution de fichiers /etc du backend 
+> dans cscat
+
+Oui!
+
+> -est-ce que ça fait du sens de prévoir des recherches par d’autres 
+> paramètres que le nom
+
+Je ne crois pas que ce soit utile, surtout initialement.
+
+> -en général, le code qui a des chances pour rester (les outils, le 
+> squelette du daemon, émulation, exécutables cs*) devraient subir une 
+> inspection pour sécurité
+
+Bien sûr, une fois que cela stabilise et que nous sommes prêts à
+traduire le prototype en implantation.
+
+> -trouver une librairie pour parser du (pseudo)xml
+
+Humm, il faut minimiser les dépendances. Autant pour le stockage que
+pour la transmission du daemon nous pouvons choisir un sous ensemble de
+XML trivial à "parser".
+
+> -trouver une librairie d’analyse de protocole http (si on se greffe sur ça)
+> -l’editeur?
+> -backend pour s’adapter à gconf
+> -couche API pour offrir un API gconf
+
+Utile! En fait une partie qui sera très importante de partager est
+l'éditeur de configuration puisque les besoins sont identiques à ceux de
+gconf et que toute contribution en ce domaine sera immédiatement
+appréciée même si notre système de configuration prenait un peu de temps
+à percer.
+
+> -adapteur pour backends gconf?
+
+Ce serait peut-être utile pour réutiliser leur code. Pour réutiliser les
+données de configuration il pourrait être plus utile de simplement avoir
+un programme de conversion de format.
+

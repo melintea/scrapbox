@@ -1,0 +1,56 @@
+#! /bin/sh 
+
+#set -x
+
+#
+# Do some step by step 'manual' testing 
+#
+
+#
+# Config section.  
+#
+
+export CFGSINSTALL="/tmp/$USER/confi"
+export CFGS_TST_PREFIX='/tests'
+export TSTDIR=`pwd`
+
+#overwrite defaults
+if test -f ./tests.config; then
+    . ./tests.config
+fi
+
+
+eval_cmd()
+{
+    echo ""
+    echo "*** $1"
+    echo "Press a key (and then ENTER)"
+    read c
+    
+    eval "$1"
+}
+
+#
+# Might be difficult to get the daemon started if compiled with
+# RANDOM_NULL
+#
+while [ 1 ]; do
+    ./run_command $CFGSINSTALL/bin/cfgs_configd
+    sleep 3
+    dpid=`pidof cfgs_configd`
+    if test x"$dpid" != x""; then 
+        $TSTDIR/print_red "**** cfgs_configd started: $dpid"
+        break 
+    fi
+done
+
+
+CMD1="$CFGSINSTALL/bin/cfgs_tool --set    value name=$CFGS_TST_PREFIX/manual value=99" 
+CMD2="$CFGSINSTALL/bin/cfgs_tool --get    value name=$CFGS_TST_PREFIX/manual"
+CMD3="$CFGSINSTALL/bin/cfgs_tool --remove value name=$CFGS_TST_PREFIX/manual"
+
+
+eval_cmd "$CMD1" 
+eval_cmd "$CMD2" 
+eval_cmd "$CMD3" 
+eval_cmd "$CMD2" #empty rez

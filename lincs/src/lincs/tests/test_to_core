@@ -1,0 +1,24 @@
+#! /bin/sh
+
+#
+# Usage: ./test_to_core.sh <args>
+# 
+# Runs a program in infinite loop, with given args, until it core dumps. 
+# Assume SIGINT(Ctrl-C) == 2 
+#
+
+trap 'echo ''"''*** Exit...''"'  2 
+
+rm ../lincs.log
+
+while [ 1 ]; do
+    echo "$@"
+    eval "$@"
+    echo "** exit with $?"
+    
+    if test -f ./core; then
+        echo "**** Core dumped !"
+        exit 1
+    fi
+done
+

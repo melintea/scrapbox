@@ -1,0 +1,83 @@
+#! /bin/sh
+
+#
+#
+#
+
+set -x -v
+
+aclocal #-I config
+libtoolize --force --copy --ltdl || exit 1
+aclocal || exit 1
+autoheader || exit 1
+automake --add-missing --copy || exit 1
+autoconf || exit 1
+
+#
+# probleme link
+#
+cd tiger && ln -s . tiger 
+cd ..
+
+#
+# fix --prefix
+# FIXME: man prefix, include prefix
+#
+CSPREFIX='/tmp/\044USER/lincs'
+INCPREFIX='/tmp/\044USER/tiger/include'
+MANPREFIX='/tmp/\044USER/tiger/man'
+
+
+
+TMPFILE='./configure.tmp'
+
+CMD="perl -e ""'""while(<>) {s:ac_default_prefix=/usr/local:ac_default_prefix=\042$CSPREFIX\042:g; print;}""'"" <$TMPFILE >./configure"
+mv ./configure $TMPFILE || exit 1
+eval $CMD
+chmod +x ./configure
+rm $TMPFILE
+
+CMD="perl -e ""'""while(<>) {s:includedir=\047\044{prefix}/include\047:includedir=\042$INCPREFIX\042:g; print;}""'"" <$TMPFILE >./configure"
+mv ./configure $TMPFILE || exit 1
+eval $CMD
+chmod +x ./configure
+rm $TMPFILE
+
+CMD="perl -e ""'""while(<>) {s:mandir=\047\044{prefix}/man\047:mandir=\042$MANPREFIX\042:g; print;}""'"" <$TMPFILE >./configure"
+mv ./configure $TMPFILE || exit 1
+eval $CMD
+chmod +x ./configure
+rm $TMPFILE
+
+
+
+#
+# libltdl. FIXME: see if we really need to replace 
+#
+TMPFILE="./libltdl/configure.tmp"
+
+CMD="perl -e ""'""while(<>) {s:ac_default_prefix=/usr/local:ac_default_prefix=\047$CSPREFIX\047:g; print;}""'"" <$TMPFILE >./libltdl/configure"
+mv ./libltdl/configure $TMPFILE || exit 1
+eval $CMD
+chmod +x ./libltdl/configure
+rm $TMPFILE
+
+#
+# tvision
+#
+TMPFILE="./tvision/configure.tmp"
+
+CMD="perl -e ""'""while(<>) {s:TVPREFIX=/tmp/tvision:TVPREFIX=\047$CSPREFIX\047:g; print;}""'"" <$TMPFILE >./tvision/configure"
+mv ./tvision/configure $TMPFILE || exit 1
+eval $CMD
+chmod +x ./tvision/configure
+rm $TMPFILE
+
+
+cat <<EOM
+
+  Default configure --prefix is $CSPREFIX
+  Done !!
+  
+EOM
+

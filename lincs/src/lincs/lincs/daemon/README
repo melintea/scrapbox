@@ -1,0 +1,4 @@
+cfgs_daemon is the daemon executable that will serve incoming requests from 
+clients.
+
+See lincs/cfgs/cfgs_config.h for more datails.

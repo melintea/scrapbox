@@ -1,0 +1,29 @@
+Basic Installation
+==================
+
+NOTE: this will change in future versions: all files should belong to a 
+special user, say 'lincs' and all users on the system should be part of 
+group 'lincs'. User's 'lincs' account should be special: no shell, no login 
+possible, etc. This is work in progress. 
+
+3 easy steps:
+
+    ./configure
+    make
+
+If this step fails because X11 headers are installed on your system, then
+comment out HAVE_X11 in tvision/include/tv/configtv.h and 
+    make clean
+    make
+
+Switch to root and enter:
+
+    make install
+
+
+Components
+----------
+
+- the 'tiger' binary will go in the default lincs installation directory,
+   /etc/lincs/bin 
+

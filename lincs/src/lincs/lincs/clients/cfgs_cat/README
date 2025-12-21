@@ -1,0 +1,5 @@
+cfgs_cat is an executable that will re-create traditional /etc configuration
+files from the entries stored in the system.  Normally it is called from 
+within the emulation library (open function call) with which it
+communicates through a pipe.
+

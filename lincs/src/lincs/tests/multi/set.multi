@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfgs>
+  <!-- This is the meat -->
+  <cfgs:entry name="/tests/multicmd/val1" value="val of val1" layer="default" bozo="dummy1"/>
+  <cfgs:entry name="/tests/multicmd/val2" value="val of val2" layer="default" bozo="dummy2"/>
+  <cfgs:entry name="/tests/multicmd/val3" value="val of val3" layer="default" bozo="dummy3"/>
+</cfgs>

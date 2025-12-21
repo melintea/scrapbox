@@ -1,0 +1,3 @@
+All clients using the LinCS configuration system have to links against the 
+-lcsc library.  This library contains the client API.
+

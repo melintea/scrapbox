@@ -1,0 +1,26 @@
+
+<h1> Available Documentation</h1>
+
+<ul>
+<li>Introduction</li>
+
+<ul>
+  <li><a href="http://www.professeurs.polymtl.ca/michel.dagenais/pkg/config.html">
+      The Future of System Configuration</a> by Michel Dagenais</li>
+</ul>
+
+<li> Architecture overview</li>
+
+<ul>
+    <li><a href="../architecture/tiger.html">Architecture</a></li>
+</ul>
+
+<li> <a href="../site/install.html">Installation notes</a></li>
+
+<li> <a href="../site/faq.html">FAQ</a></li>
+
+<li> <a href="../site/links.html">Links</a></li>
+
+</ul>
+
+<p><br>

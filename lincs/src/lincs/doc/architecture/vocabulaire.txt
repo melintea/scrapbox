@@ -1,0 +1,62 @@
+
+DEFINITION OF TERMS
+
+configuration database: tree of configuration entries accessible
+through the config API using their pathname as key.
+
+configuration repository: file based storage for one or more configuration
+databases stored in the same format. For example, /etc/gconf
+is a repository of gconf XML databases (/etc/gconf/gconf.xml.defaults,  
+/etc/gconf/gconf.xml.mandatory).
+
+configuration server: process offering configuration databases to clients.
+A configuration server typically runs under the user id of the
+configuration repository it directly serves. On a multiuser system, one
+configuration server per active user (xxx) would serve the /home/xxx/.*
+configuration files and one root user server would serve the /etc configuration
+files.
+
+configuration backend: a configuration backend is a driver to access 
+configuration databases of a certain type. An XML backend would be used to
+access all databases from XML configuration repositories. Similarly, DBM, SQL,
+or Text backends would be used for databases from repositories of the
+corresponding type. A Remote Server backend accesses a database offered by
+another configuration server. A stacked database backend accesses several
+other databases as layers searched from the top to the bottom; it allows 
+inherited configuration parameters.
+
+configuration library: implementation of the configuration API. It dynamically
+loads the needed backends. The default is to only use the Server backend and
+connect to the local configuration server with the same uid. In minimal
+environments, such as during the boot or installation phases, the
+library uses the needed backends directly.
+
+configuration entry: a configuration entry stores a list of attribute/value
+pairs. There are three types of entries: variable, schema and directory.
+
+configuration variable: a configuration variable stores a configuration
+parameter and must at least include the following attributes: type, 
+value, mtime. It may contain a schema attribute. If not present,
+for an entry accessed with key pathnameX, it defaults to /schema/pathnameX.
+
+configuration directory: entry with search, mtime and schema attributes.
+The search attribute determines if, when listing this directory, the next
+layer in a stacked database will be listed as well. If search is "transparent",
+the next lower layer is listed as well, while if "opaque" only the directory
+in the current layer is listed.
+
+configuration schema: entry with type and value, or search, attributes 
+as well as additional descriptive attributes possibly in several languages.
+
+
+THEORY OF OPERATION
+
+When the configuration server is started, it must use the configuration library
+to access a default, or command line specified, configuration database. From
+this database, it can obtain its own configuration information which includes
+the list of databases to offer. Each database is defined by a name, a backend,
+and a backend specific address (pathname, ip/port, list of databases to stack).
+As the server loads these databases, some its configuration information 
+may change. It may need to reread this information until nothing changes or
+a maximum number of iterations is reached.
+

@@ -1,0 +1,28 @@
+#
+# Config vars affecting all Makefile
+#
+
+##
+## Set $(CFLAGS_EXTRA), $(LDFLAGS_EXTRA) env vars to alter all the binaries 
+## of the build.
+## 
+## -DONE_SHOT: for debugging purposes, get rid of the daemon forking
+##  and of the threading
+##
+
+
+#                 -Wshadow -Wpointer-arith -Wwrite-strings \
+#                 -Wcast-qual -Wcast-align -Wconversion \
+# -Wstrict-prototypes -Wmissing-prototypes -DRANDOM_NULL  
+TOP_CFLAGS    =  -Wall -fexceptions \
+                 -D_GNU_SOURCE \
+                 -ggdb3 -rdynamic 
+
+TOP_INCLUDES  =  -I$(top_builddir) -I$(top_srcdir) -I$(top_srcdir)/lincs          \
+                 -I$(top_srcdir)/lincs/cfgs -I$(top_srcdir)/lincs/lib_cfgs_client \
+                 -I$(top_srcdir)/lincs/lib_cfgs_tools \
+                 -I$(top_srcdir)/libltdl  -I$(top_srcdir)/expat/lib 
+
+TOP_LINKDIRS  =  -L$(top_srcdir)/lincs/lib_cfgs_tools  \
+                 -L$(top_srcdir)/lincs/lib_cfgs_client \
+                 -L$(top_srcdir)/expat

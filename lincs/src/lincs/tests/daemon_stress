@@ -1,0 +1,100 @@
+#! /bin/sh 
+
+#set -x
+
+#
+# Repeat ad nauseam requests to daemon. Has to stay alive.  
+#
+
+#
+# Config section.  
+#
+
+export CFGSINSTALL="/tmp/$USER/confi"
+export CFGS_TST_PREFIX='/tests'
+export TSTDIR=`pwd`
+
+#overwrite defaults
+if test -f ./tests.config; then
+    . ./tests.config
+fi
+
+
+#
+# needs bash!
+#
+trap sigint_trap 2
+echo "** "
+echo "** $0: press Ctrl-C to stop "
+echo "**"
+
+sigint_trap()
+{
+    echo "*** $0 exit..."
+    kill $dpid
+    rm $KEEP_RUNNING
+    exit
+}
+
+
+test_failure()
+{
+    if test -f ./core; then
+        echo "**** Core dumped !"
+        sigint_trap
+    fi
+    
+    pidd=`pidof cfgs_configd`
+    if test x"$pidd" = x""; then 
+        $TSTDIR/print_red "**** Daemon died! $dpid"
+        sigint_trap
+    fi
+}
+
+
+eval_cmd()
+{
+    echo ""
+    echo "*** $1"
+    eval "$1"
+}
+
+
+#
+# Might be difficult to get the daemon started if compiled with
+# RANDOM_NULL
+#
+while [ 1 ]; do
+    ./run_command $CFGSINSTALL/bin/cfgs_configd
+    sleep 3
+    dpid=`pidof cfgs_configd`
+    if test x"$dpid" != x""; then 
+        $TSTDIR/print_red "**** cfgs_configd started: $dpid"
+        break 
+    fi
+done
+
+
+
+KEEP_RUNNING='./.run_stress'
+touch $KEEP_RUNNING
+
+
+CMD1="$CFGSINSTALL/bin/cfgs_tool --set    value name=$CFGS_TST_PREFIX/stress value=99" 
+CMD2="$CFGSINSTALL/bin/cfgs_tool --get    value name=$CFGS_TST_PREFIX/stress"
+CMD3="$CFGSINSTALL/bin/cfgs_tool --remove value name=$CFGS_TST_PREFIX/stress"
+
+nloop="0"
+while test -f $KEEP_RUNNING; do
+    nloop=`echo $nloop + 1 | bc`
+    ./print_blue "*** Start loop $nloop *** "
+    eval_cmd "$CMD1" 
+    eval_cmd "$CMD2" 
+    eval_cmd "$CMD3" 
+    eval_cmd "$CMD2" #empty rez
+
+    test_failure
+    
+    #sleep 1
+done
+

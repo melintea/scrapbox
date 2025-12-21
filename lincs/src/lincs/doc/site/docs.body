@@ -1,0 +1,33 @@
+
+<h1> Available Documentation</h1>
+
+<ul>
+<li>Introduction</li>
+
+<ul>
+  <li><a href="http://www.professeurs.polymtl.ca/michel.dagenais/pkg/config.html">
+      The Future of System Configuration</a> by Michel Dagenais</li>
+</ul>
+
+<li> Architecture overview</li>
+
+<ul>
+    <li> <a href="../architecture/vocabulaire.txt">Terminology</a></li>
+    <li><a href="../architecture/architecture.html">Architecture</a></li>
+</ul>
+
+<li> 
+    <a href="../html/index.html">API documentation</a> 
+    <a href="../../downloads/Docs-LinCS-0.1.tar.gz">
+       (archive for off-line browsing) </a>
+</li>
+
+<li> <a href="../site/install.html">Installation notes</a></li>
+
+<li> <a href="../site/faq.html">FAQ</a></li>
+
+<li> <a href="../site/links.html">Links</a></li>
+
+</ul>
+
+<p><br>

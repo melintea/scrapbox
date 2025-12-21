@@ -1,0 +1,10 @@
+#! /bin/sh
+
+#
+# Usage: rename oldname newname
+# 
+#
+
+mv $1 $2
+cvs remove $1
+cvs add $2

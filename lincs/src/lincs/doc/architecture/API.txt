@@ -1,0 +1,424 @@
+* API second proposition
+
+** Common types
+
+typedef struct {
+  char* url;
+  char cookie[256];
+  size_t size;
+  // opaque elements
+} cssession;
+
+The cssession is own by the backend and so must be discard through the
+cs_disconnect.  This allow the backend to add any element to the end
+of the struct to manage the user session.  The URL and cookie however
+stay there for verification purpose.  Maybe the cookie is unnecessary
+however.  Although the backend will be dynamically load in each
+client, the cssession is still need to allow a client (like the stack
+backend) to access multiple database with the same backend.
+
+May be a better name for cssession is csdatabase since it's really
+what each session represent.
+
+typedef struct {
+  int type;
+  size_t size;
+  // other elements
+} csauth;
+
+csauth is also a common structure for different type of authorization.
+Just like socket(7), different initialization function will be create
+for allocation, initialization and deallocation.  The goal is to allow
+different type of authorization pattern, including a default one based
+on euid.
+
+type char csmode;
+#define CSMODE_READONLY 'r'
+#define CSMODE_WRITE 'w'
+#define CSMODE_EDIT 'e'
+
+Anything else?
+
+typedef struct {
+  char* key;
+  csschema* schema;
+  size_t data_size;
+  void* unknown; //
+} csentry;
+
+Here, I'm not sure about this element.  It's mean to help implement
+quicker access to current configuration elements, with pre-parsed key
+or hash-table root for example.  However, this is harder to manage.
+May be we should stay with a simple char* key instead and manage
+everything from there.
+
+typedef struct {
+  int type;
+  size_t data_size;
+  void* unknown;
+} csvalue;
+
+An opaque structure which can contain different elements.  Must be
+allocate by the backend, and so deallocate somewhere else.  That's why
+I consider the csentry option to still be relevant, since the
+complexity of managing a memory pool is here also.
+
+More specifically, here the csvalue return for a directory:
+
+csvalue direntry =
+{
+        CS_DIRECTORY,
+        number_of_keys * sizeof(csentry*),
+        children_keys_allocated_array;
+};
+
+csschema is still define as a csentry.  The details of the load
+(data member) still need to be define.
+
+** Backend API
+
+At this level, there is just a notion of key/value pair with a path,
+as well as notification through a regular expression pattern apply to
+the key.
+
+Especially, there is no notion of logging (commit, rollback), a
+minimal permission setting layer (maybe file oriented), and
+particularly, no schema and type representation!  This can cause a
+problem with backend that read original configuration file, even if
+they are read-only. They must emulate the schema layer (by providing
+one) and must have some limited recognition capability on key scheme
+and associate value.  The logic however is to keep them simple to
+facilitate building of different backend.
+
+*** Connection
+
+cssession* cs_session_connect(char* url, csauth* auth, csmode mode);
+int cs_session_disconnect(cssession* session);
+int cs_session_check(cssession* session, csmode mask);
+
+*** Notification
+
+typedef int csid; // optional
+csid cs_notify_register(cssession* session, char* pattern,
+    void(*)(csentry* entry, csvalue* old, csvalue* new));
+int cs_notify_unregister(cssession* session, csid id);
+
+fam(3x) also inspire me the following:
+
+int cs_notify_suspend(cssession* session, csid id);
+int cs_notify_resume(cssession* session, csid id);
+int cs_notify_pending(cssession* session);
+
+*** Value Edition
+
+int cs_entry_set(cssession* session, csentry* key, csvalue* value, int gmode);
+// Available gmode are CS_LOCAL, CS_DIRECTORY, CS_DEEP
+int cs_entry_get(cssession* session, csentry* key, csvalue* value, int smode);
+int cs_entry_copy(cssession* session, csentry* src, csentry* dest, int smode);
+// Avalaible smode are CS_MERGE, CS_OVERWRITE, CS_ADD_ONLY,
+// CS_ENTRIES_ONLY, CS_EXISTING_ONLY, CS_VALUE_ONLY
+
+cs_entry_get with a key parameter pointing on a directory will
+return the list of csentry inside this directory if CS_DIRECTORY
+is set, or the complete subtree if
+
+*** Search
+
+int cs_entry_search(cssession* session, csentry* start,
+    csvalue* search, csvalue* result);
+// The search is a special csvalue which still need to be defined.
+
+*** Variable Edition
+
+int cs_entry_add(cssession* session, csentry* key, csvalue* value);
+// value can be NULL
+int cs_entry_remove(cssession* session, csentry* key);
+
+** Client API
+
+*** Connection
+
+cssession* cs_session_connect(csauth* auth, csmode mode);
+int cs_session_disconnect(cssession* session, int sync);
+int cs_session_check(cssession* session, csmode mask);
+int cs_session_commit(cssession* session);
+int cs_session_rollback(cssession* session);
+
+*** Notification
+
+typedef int csid; // optional
+csid cs_notify_register(cssession* session, char* pattern,
+    void(*)(csentry* entry, csvalue* old, csvalue* new));
+int cs_notify_unregister(cssession* session, csid id);
+
+fam(3x) also inspire me the following:
+
+int cs_notify_suspend(cssession* session, csid id);
+int cs_notify_resume(cssession* session, csid id);
+int cs_notify_pending(cssession* session);
+
+
+*** Schemas management
+
+int cs_schema_add(cssession* session, char* skey, csschema* schema);
+int cs_schema_remove(cssession* session, char* skey);
+int cs_schema_get(cssession* session, char* skey, csschema* schema);
+csvalue* cs_schema_get_default(cssession* session, csschema* schema);
+
+I'm not sure about this one... can be very effective DOS attacks, even if we
+limit it on key name.
+
+// char** cs_schema_get_variables(cssession* session, csschema* schema);
+
+*** Variables management and navigation
+
+csentry* cs_entry_add(cssession* session, char* key, int direction);
+// direction can be CS_PREPEND or CS_APPEND.
+csentry* cs_entry_insert(cssession* session, csentry* entry, char* key, int direction);
+// This previous one insert a key before or after entry.
+// The key became a sibling of entry.
+// direction can be either CS_BEFORE or CS_AFTER
+csentry* cs_entry_move(cssession* session, csentry* entry, csdir dir);
+// direction can be CS_UP or CS_DOWN... it really move the position of the key in the three.
+
+// Same functions... just different way to call them.
+int cs_entry_remove(cssession* session, csentry* entry);
+int cs_entry_remove_key(cssession* session, csentry* entry);
+
+csentry* cs_entry_copy_schema(cssession* session, csentry* src, csentry* dest, csdir dir, int deep);
+// Previous one copy the schema of a key (src) to dest (dest)
+csentry* cs_entry_copy_schema_with_value(cssession* session, csentry* src, csentry* dest, csdir dir, int deep);
+
+csentry* cs_entry_get_entry(cssession* session, char* key);
+
+// the next two functions doesn't really need a session
+// but this can be need for extending the behavior.
+char* cs_entry_get_key(cssession* session, csentry* entry); 
+int cs_entry_is_directory(cssession* session, csentry* csentry);
+
+csentry* cs_entry_get_first_child(cssession* session, csentry* directory);
+csentry* cs_entry_get_sibling(cssession* session, csentry* value);
+
+csschema* cs_variable_get_schema(cssession* session, csentry* entry);
+
+*** Variables edition
+
+csvalue* cs_entry_get_value(cssession* session, csentry* key);
+csvalue* cs_entry_get_value_unexpanded(cssession* session, csentry* entry);
+csvalue* cs_entry_get_value_with_locale(cssession* session, csentry* entry, char* locale, int expanded);
+
+int cs_entry_set_value(cssession* session, csentry* entry, csvalue* value);
+// return old value
+csvalue* cs_entry_reset_value(cssession* session, csentry* entry);
+int cs_entry_set_with_locale(cssession* session, csentry* entry, char* locale);
+
+There most be some wrappers too for specific type, etc.
+Especially important for list and dictionnary.  E.g.
+
+int cs_entry_get_double(cssession* session, csentry* entry, double* value);
+int cs_entry_get_list(cssession* session, csentry* entry, void* list);
+
+etc...
+
+*** Misc.
+
+int cs_getlasterr( cssession *s);
+char* cs_geterrmsg( cssession *s, int);
+
+
+* API Evaluation
+
+ This is some notes about the API.  I explore some common
+ API/Configuration system around and this is my resume of it.  The
+ application explore is common application that we can find in most
+ Unix system.  I choose them either for their popular usage, consistent
+ of their interface or particularity (read complexity) of them, so to
+ have a broad view on how configuration is done in Unix, particularly
+ Linux, system.
+
+ The impression is that a lot of configurations are done using special
+ kind of scripting language, which doesn't help us a lot.  Even some
+ XML like language are in fact a set of commands with a particular
+ order.  This is the case of Apache, Sendmail, or even IPTools, the
+ linux NAT system.  Lot of other program have some kind of code
+ snippets, which are source by other scripts.  This make it hard to
+ convert easily and I understand better why other people that have try
+ to manipulate configurations choose to used a module based approach,
+ asking for specific hook to be made in the system.
+
+ Except for the kind of applications above, most of them used a form of
+ hierarchical tree, or even a completly flat string to name
+ configuration variables.  For them, I don't distinguish between file
+ location and effective variable name, except effectively where this
+ distinction aren't relevant.  However, there is often some kind of
+ option grouping (like in Apache Directory directive, or DHCP group
+ domain) of variables which are then refer at a later time or used
+ variable names.  We must think about having such structure (that's it:
+ structure that can contain arbitrary variables) in our system.
+
+ This also exist to a lower level with variable substitutions inside
+ other variables.  Some of this substition can evolved either another
+ config variable, an environment variable, or even a variable specific
+ to the application.  Can be hard to treat if we want to emulate this
+ too.
+
+ About low level data type, the number of them are very low: string,
+ int, double, time, uid/gid and equivalent user/group names, Byte64
+ data, command lines, regexp, ip, filename/directory, passwd and
+ enumeration list are the most common.  Composite type include ordered
+ list and dictionnary and hierarchical tree as mention above.
+
+ Some system have specific permissions add to it, like non-overriding
+ options or even specific merge behavior...  Specifically, Apache leave
+ the merge function in the module responsible for the configuration.
+ KConfig used an immutable directive which can be apply to file,
+ section or specific variable.  GConf, instead used convention level,
+ with the default level as the bottom of its stack and the mandatory
+ level at the top.
+
+ Some of those API also have a roll-back feature.  Change are made and,
+ as long as they are not commit, you can roll back to them.  This is
+ the case of KConfig and Debconf, and we find it important enough to be
+ include, especially since some changes must be committed altogether to
+ avoid dangerous inconsistencies in the configuration.
+
+ KConfig and GConf allow data to be mark as localizable.  This can be
+ either be added into the meta-model of our data, or simply put into
+ the structure itself.  Adding it to the meta-data make our code more
+ complex but will greatly reduce the difficulty of porting our API to
+ it.
+
+* KConfig model of data:
+
+ class KConfigBackEnd: This class deal with the specific retrieving and
+ saving of data.  It is constructed with a resource type and filename,
+ which can be either absolute or search in a configuration path.
+ Global configuration options can be merge or not.  A sync method
+ permit to sync data to disk, with an optional merge with current
+ existing data.  setLocaleString allow the user to change the current
+ Locale.
+
+ QMap<KEntryKey, KEntry>: KEntry is a struct containing the value as a
+ string, as well as flags to know if the Entry is dirty, localized
+ and/or global.  KEntryKey contain the Key name and group and if the
+ entry is or must be localized.  KEntryKey can be ordonned using strcmp
+ on the group, name and if the Key is localized or not (non-localized
+ first).  An Iterator is also provide.
+
+ KConfig derived from KConfigBase and has the following methods:
+
+ - setGroup(QString), hasGroup(QString), group(), groupList(): 
+
+ set, verify, return and list the available groups upon which search
+ will be done.
+
+ - QString readEntry(Key, Default): read an entry.
+
+ - QVariant readPropertyEntry(Key, Type): read an entry as if it was of
+ the specified type.
+
+ - QStringList readListEntry(Key, sep = ','): return a list of strings.
+
+ - QList<int> readIntListEntry(Key): return a list of integers.
+
+ - QString readPathEntry(Key, Default): read a path entry and enable $expansion.
+
+ - read*Entry(Key, Def): read various entry type including int, uint, long, double,
+ QFont, Rect, Point, Size, Color, DateTime
+
+ - [OldValue] writeEntry(pKey, pValue, bPersistent, bGlobal, bFalse):
+
+ Write Value at key.  If persistent is false, the Dirty bit will not
+ be set and so data will be lost when the program end.  Possible type
+ are the same as with read*Entry (including list).
+
+ StrList variants has a separator.
+ Double has a format (e,f,g) and precision paramater.
+ The Old Value is return except for lists and QVariant.
+
+ - setDollarExpansion(bool), bool dollarExpansion(): permet de definir si les
+ variables marque d'un e seront resolue ou non.
+
+ - rollback(), sync(): permet d'oublier les derniers changements ou les enregistrer.
+
+ - setReadOnly, isReadOnly(): determine si une variable est en lecture seulement.
+
+ - isDirty(): la variable a ete modifiee.
+
+ - hasKey(): indique si la cle existe.
+
+
+* GConf model:
+
+** GConf editing functions
+
+gconf_engine_get/set_* GConfValue data.
+
+You can get the current localized value, the current value with a
+different local, and same thing for the default (schema) value.
+Specific type include float, bool, string and int.
+
+gconf_engine_get/set_list: get/set a list of the appropriate type.
+
+gconf_engine_get/set_pair: get/set a pair of value!
+
+gconf_enum_to_string, gconf_string_to_enum: used a lookup table to convert.
+
+gconf_engine_set_*: set a key
+
+** GConf meta functions
+
+gconf_engine_associate_schema, gconf_engine_all_entries,
+gconf_engine_all_dirs, gconf_engine_exists_dir,
+gconf_engine_remove_dir, gconf_engine_key_is_writable,
+gconf_engine_get_schema, gconf_engine_suggest_sync,
+gconf_clear_cache, gconf_synchronous_sync
+
+Note that a popt version of the options is available but deprecated.
+
+** Key names manipulations functions:
+
+gconf_valid_key, gconf_key_is_below(below, above),
+gconf_concat_dir_and_key(dir, key), gconf_unique_key,
+gconf_escape_key, gconf_unescape_key
+
+** Notification functions
+
+gconf_notify_add/remove: add a notification of change in specified
+namespace (key or dir).  return a context id (guint) used for the
+removal.
+
+** Possible errors:
+
+typedef enum { /*< prefix=GCONF_ERROR >*/
+  GCONF_ERROR_SUCCESS = 0,
+  GCONF_ERROR_FAILED = 1,        /* Something didn't work, don't know why, probably unrecoverable
+                                    so there's no point having a more specific errno */
+
+  GCONF_ERROR_NO_SERVER = 2,     /* Server can't be launched/contacted */
+  GCONF_ERROR_NO_PERMISSION = 3, /* don't have permission for that */
+  GCONF_ERROR_BAD_ADDRESS = 4,   /* Address couldn't be resolved */
+  GCONF_ERROR_BAD_KEY = 5,       /* directory or key isn't valid (contains bad
+                                    characters, or malformed slash arrangement) */
+  GCONF_ERROR_PARSE_ERROR = 6,   /* Syntax error when parsing */
+  GCONF_ERROR_CORRUPT = 7,       /* Fatal error parsing/loading information inside the backend */
+  GCONF_ERROR_TYPE_MISMATCH = 8, /* Type requested doesn't match type found */
+  GCONF_ERROR_IS_DIR = 9,        /* Requested key operation on a dir */
+  GCONF_ERROR_IS_KEY = 10,       /* Requested dir operation on a key */
+  GCONF_ERROR_OVERRIDDEN = 11,   /* Read-only source at front of path has set the value */
+  GCONF_ERROR_OAF_ERROR = 12,    /* liboaf error */
+  GCONF_ERROR_LOCAL_ENGINE = 13, /* Tried to use remote operations on a local engine */
+  GCONF_ERROR_LOCK_FAILED = 14,  /* Failed to get a lockfile */
+  GCONF_ERROR_NO_WRITABLE_DATABASE = 15, /* nowhere to write a value */
+  GCONF_ERROR_IN_SHUTDOWN = 16   /* server is shutting down */
+} GConfError;
+
+
+* Emacs Options:
+
+- Local Variables: ;
+- mode:outline ;
+- End: ;
+
+
+

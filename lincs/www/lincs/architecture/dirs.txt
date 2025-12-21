@@ -1,0 +1,46 @@
+
+Le code est organisé comme suit:
+
+tools :  outils pour manipuler les fichiers, l'archive, gérer le
+         projet, etc.
+
+lincs : la partie principale du projet - on trouve ici les librairies, 
+         les backends, etc :
+  cfgs : fichiers « header »
+  lib_cfgs_client : librairie qui contient l'API - a l'usage des 
+         programmes-clients 
+  lib_cfgs_tools : contient des outils tels hash, liste doublement           
+      chaînée, gestion de mémoire, des mutexes, fonctionnalité de 
+      « log ». Tous les clients s'en servent
+  lib_cfgs_emul : module qui intercepte l'appel « open » pour recréer 
+      des fichiers /etc si nécessaire. 
+
+  clients :
+      cfgs_tool : outil ligne de commande permettant de manipuler les 
+          couches, valeurs, etc.
+      cfgs_info : outil permettant d'obtenir des informations sur le 
+          système, tels quels backends sont disponibles, port du 
+          daemon, etc. 
+      cfgs_cat : exécutable qui recrée des fichiers /etc sur demande
+
+  daemon : 
+  backends :
+      cfgs_fs_bk : backend qui gère ses entrées comme fichiers sur 
+          disque
+      cfgs_stacker : backend qui chapeaute d'autres backends pour 
+          pouvoir les hiérarchiser
+
+tests : une batterie modulaire de tests pour voir si l'ensemble est 
+        fonctionnel
+doc : tout ce qui offre des informations sur les concepts derrière le 
+        système - diagrammes, spécifications, etc.
+expat : librairie pour parser xml
+libltdl : librairie pour charger des modules « shared object » de façon 
+        indépendante du type d'OS
+
+autres répertoires : crées par automake/autoconf 
+
+Il y a aussi une documentation en-ligne, extraite des sources : 
+http://www.info.polymtl.ca/~amelinte/confi-site/site/docs.html
+
+

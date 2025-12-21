@@ -1,0 +1,22 @@
+
+<h1> About </h1>
+
+<p><b>LinCS</b> (Linux Configuration System) is a configuration tool aiming to offer a uniform way for applications,
+  the OS itself and machine clusters to store/retrieve their configuration information.&nbsp; Thus, it will 
+  completely replace the standard   configuration files, such as the ones stored in <i>/etc</i>. It follows on the
+  road opened by other configuration tools such as gconf but it is novel in that
+  it addresses the area of system configuration.&nbsp; Another novelty is that it offers
+  a transparent way for &quot;older&quot; applications that use configuration
+  files to live on a LinCS-configured OS.&nbsp; Its design is modular and
+  extensible, allowing for additional functionality plug-ins.  Applications using LinCS will benefit 
+   from features such as notifications when data change and backtracking, 
+   among others.. </p>
+  
+<p>
+  <a href="tiger.jpg" target="_blank"><img src="tiger-small.jpg" hspace=7 vspace=7 border=0 height=110 width=200 align=left></a>
+  A separate component is the text-based UI editor <b>tiger</b> (Text
+  Interface Generic EditoR), allowing users to manage their
+  configuration values and admins to configure the machine(s). </p>
+   
+<p>Currently, we are in a pre-alpha stage. 
+

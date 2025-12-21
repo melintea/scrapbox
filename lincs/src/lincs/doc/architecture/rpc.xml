@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<cfgs xmlns:cfgs="/" protocol_version="1">
+
+   <!-- 
+     Request.  Might be encoded in an URL too in the future? 
+     -->
+          <!--  
+            Zero or one.  
+            -->
+          <cfgs:function_call function="cfgs_getval" param1="/net/ip" param2="111.222.121.132"/>
+
+          <!-- 
+            Register for notification: 0 or more.  
+            -->
+          <cfgs:notif_register pid="112" signal="3" value="/qwe/*"/>
+          <cfgs:notif_register ip="112.133.144.155" port="3000" value="/?qwe/*"/>
+
+          <!-- 
+            Notif deregister mechanism.  value optional param.  
+            -->
+          <cfgs:notif_deregister pid="112" signal="3" value="/qwe/*"/>
+          <cfgs:notif_deregister ip="112.133.144.155" port="3000" value="/?qwe/*"/>
+
+          <!--  
+            Namespace navigation.  
+            -->
+          <cfgs:function_call function="cfgs_getsubvals" param1="/partial/val/name" param2="/layer/name"/>
+          <cfgs:function_call function="cfgs_getsublayers" param1="/partial/layer/name"/>
+   <!--  
+     Answer 
+     -->
+          <!-- 
+            Always one error reported.
+            Attributes:
+                -type (internal/errno/h_errno, etc.)
+                -error code and string
+                -extra information
+            -->
+          <cfgs:error type="2" code="2" explanation="errno" strerror="Permission denied"  extra_info="fs.c/12"/>
+
+          <!-- 
+            0 or more 
+            -->
+          <cfgs:cfgs_entry entry_type="value" name="/net/ip" layer="default" value="111" value_type="int16" scheme="/schemes/ip"/>
+
+          <!--  
+            Zero or more - up to one per function_call.  
+            Some functions return an int value.  
+            -->
+          <cfgs:call_return value="-1"/>
+          
+          <!-- 
+            0 or more notifications.  
+            Server simply sends the notif.  
+            In a second phase, client starts the communication polling for entries.  
+            -->
+          <cfgs:notif pid="112" signal="3"/>
+          <cfgs:notif ip="112.133.144.155" port="3000"/>
+
+          <!--  
+            Namespace navigation - 0 or more.  
+            -->
+          <cfgs:cfgs_str value="subkey1"/>
+</cfgs>

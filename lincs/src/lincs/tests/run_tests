@@ -1,0 +1,234 @@
+#! /bin/sh 
+
+#
+# $RCSfile: run_tests,v $ $Revision: 1.2 $ $Date: 2004/03/17 19:24:51 $
+#
+# Main test harness file. Add your test files below, in the "Add tests here"
+# sections.  Make sure the config section is ok.  
+# Must 'make install' before proceeding to tests.  
+#
+# Test writing guidelines:
+#     - read Makefile, run_tests, run_test, libemul.tst
+#     - use the keywords "success" and "FAILED" in your messages
+#     - use the "**** " as a prefix in your messages
+#     - use print_red for error messages, print_blue for markers 
+#     - all value names must start with $CFGS_TST_PREFIX. 
+#       Ex: "$CFGS_TST_PREFIX/network/eth0/ip"
+#       (this value space will be destroyed)
+#     - return 0 on success, 1 on error
+#     - use .tst extension for active tests 
+#     - when adding a test to the list below:
+#         - keep order - tests' order is important
+#         - add it also in the daemon section if appropriate 
+#
+
+# 
+# This file is part of LinCS/tiger.  
+# 
+# LinCS/tiger is distributed under the terms of the GNU Lesser General Public
+# License version 2 or any later version.  See the file COPYING.LIB for copying 
+# permission or http://www.gnu.org. 
+#                                                                            
+# THIS MATERIAL IS PROVIDED AS IS, WITH ABSOLUTELY NO WARRANTY EXPRESSED OR  
+# IMPLIED, without even the implied warranty of MERCHANTABILITY or FITNESS 
+# FOR A PARTICULAR PURPOSE.  ANY USE IS AT YOUR OWN RISK. 
+#                                                                            
+# Permission to modify the code and to distribute modified code is granted, 
+# provided the above notices are retained, and a notice that the code was 
+# modified is included with the above copyright notice. 
+# 
+ 
+#set -x
+
+#
+# Config section.  
+#
+
+export CFGSINSTALL="/tmp/$USER/confi"
+export CFGS_TST_PREFIX='/tests'
+export TSTDIR=`pwd`
+
+#overwrite defaults
+if test -f ./tests.config; then
+    . ./tests.config
+fi
+
+# make sure user has run 'make install'
+if ! test -f $CFGSINSTALL/bin/cfgs_tool; then
+cat <<EOM
+
+  FAILED: Cannot find $CFGSINSTALL/bin/cfgs_tool
+
+  Is  configuration correct?
+      CFGSINSTALL=$CFGSINSTALL 
+  Have you 'make install' before?
+  
+EOM
+    exit 1;
+fi
+
+export RUN_COMMAND=`pwd`"/run_command"
+
+#
+# End config section.  
+#
+
+
+echo "0" > .CSNTOT #total num of tests
+echo "0" > .CSNOK  #tests ok
+echo "0" > .CSNKO  #tests failed
+
+
+
+cat <<EOM
+
+**** *******************************************************************
+**** Starting tests ($0 $@) 
+**** CFGSINSTALL=$CFGSINSTALL 
+**** *******************************************************************
+
+EOM
+
+
+# cleanup 
+rm -rf "$CFGSINSTALL/values$CFGS_TST_PREFIX" 
+dpid=`pidof cfgs_configd`
+if test x"$dpid" != x""; then 
+    echo "**** Killing =$dpid="
+    kill $dpid
+fi
+sleep 3 #need to wait for daemon to exit
+dpid=`pidof cfgs_configd`
+if test x"$dpid" != x""; then 
+    $TSTDIR/print_red "**** Cannot kill cfgs_configd. Do it and restart tests. FAILED"
+    exit 1
+fi
+
+
+cat <<EOM
+
+**** *******************************************************************
+**** Tests without daemon 
+**** *******************************************************************
+
+EOM
+###
+### Add tests here. Tests' order might be important
+###
+./run_test ./tst/libemul.tst
+./run_test ./tst/get_set_rm_val.tst
+# test daemon/client robustness && protocol 
+./run_test ./tst/d_proto.tst
+./run_test ./tst/layer.tst
+./run_test ./tst/attrib.tst
+
+
+#FIXME
+# cleanup, prepare
+rm -rf "$CFGSINSTALL/values$CFGS_TST_PREFIX" 
+# start daemon
+./run_command $CFGSINSTALL/bin/cfgs_configd
+if test $? -ne 0; then
+    $TSTDIR/print_red "**** Could not start cfgs_configd ($?). FAILED"
+    exit 1;
+fi
+# wait, bind may fail
+sleep 3
+dpid=`pidof cfgs_configd | grep [0-9]`
+if test x"$dpid" = x""; then 
+    $TSTDIR/print_red "**** Could not start cfgs_configd. FAILED"
+    exit 1
+fi
+
+
+cat <<EOM
+
+**** *******************************************************************
+**** Tests with daemon 
+**** *******************************************************************
+
+EOM
+ps -ef | grep '[c]fgs_configd'
+
+#echo "Press any key to continue..."
+#read c 
+
+###
+### Add tests here.  Tests' order might be important.
+### Check once in a while that daemon is alive.  
+###
+./run_test ./tst/libemul.tst
+./run_test ./tst/get_set_rm_val.tst
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+# test daemon/client robustness && protocol 
+./run_test ./tst/c_proto.tst
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+./run_test ./tst/layer.tst
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+./run_test ./tst/attrib.tst
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+./run_test ./notif_test
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+./run_test ./multicmd ./multi/set.multi
+    dpid=`pidof cfgs_configd | grep [0-9]`
+    if test x"$dpid" = x""; then 
+        $TSTDIR/print_red "**** cfgs_configd died. FAILED"
+    fi
+
+
+ttot=`cat .CSNTOT`
+fail=`cat .CSNKO`
+pass=`cat .CSNOK`
+cat <<EOM
+
+****
+****   Tests ended. 
+****      Pass:    $pass
+EOM
+if test $fail -ne 0; then
+    ./print_red  "****      FAILED:  $fail"
+else
+    ./print_blue "****      FAILED:  $fail"
+fi
+cat <<EOM
+****      Total:   $ttot
+****
+
+EOM
+
+# cleanup 
+rm .CSNKO .CSNOK .CSNTOT
+#rm -rf /tests
+#stop daemon
+dpid=`pidof cfgs_configd`
+if test x"$dpid" != x""; then 
+    echo "**** Killing =$dpid="
+    kill $dpid
+else
+    $TSTDIR/print_red "**** cfgs_configd died during tests.  FAILED"
+fi
+sleep 3 #need to wait for daemon to exit
+dpid=`pidof cfgs_configd`
+if test x"$dpid" != x""; then 
+    $TSTDIR/print_red "**** Cannot kill cfgs_configd. Do it by hand."
+    exit 1
+fi
+echo ""
+
+
+exit $fail

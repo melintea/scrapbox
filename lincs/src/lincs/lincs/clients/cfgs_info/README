@@ -1,0 +1,3 @@
+cfgs_info is a command line tool allowing to extract various information
+about the LinCS configuration system: is daemon up, on which port, 
+which backeds are available, etc.

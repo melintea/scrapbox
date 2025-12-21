@@ -1,0 +1,12 @@
+POST / HTTP/1.0
+User-Agent: Mozilla (LinCS 0.1)
+Connection: Keep-Alive
+Content-Type: text/xml
+Content-Length: 199
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<cfgs protocol_version="1.0" xmlns:cfgs="/">
+    <cfgs:function_call function="cfgs_getval" name="/tests/network/eth0/ip" layer="default" />
+</cfgs>
+

@@ -1,0 +1,12 @@
+
+<h1> News </h1>
+
+<ul>
+    <li> [13 April 2004] Version 0.2. </li>
+    <li> [24 Feb 2004] Project has been migrated to 
+         <a href="http://lincs.tigris.org">http://lincs.tigris.org</a>. </li>
+    <li> [28 Aug 2003] Values can be stored in layers and notifications
+         are delivered. </li>
+    <li> [13 May 2003] First site mock-up done. </li>
+</ul>
+

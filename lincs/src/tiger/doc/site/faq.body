@@ -1,0 +1,10 @@
+<h1> FAQ </h1>
+
+<p> <b>Why is tiger having a text interface?</b> <br>
+A machine in difficulty might not have a graphic UI.  Plus, there are hosts
+that do not have X11 installed.  On the other hand, every host has a console.
+Another kind of (G)UI can easily be added. 
+
+<p> <b>Why is tiger writen in C++?</b> <br>
+The best text UI kit available is Turbo Vision, which is written in C++. 
+

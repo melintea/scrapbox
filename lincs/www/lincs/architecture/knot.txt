@@ -1,0 +1,216 @@
+
+
+                The System Configuration Gordian Knot
+
+
+
+Introduction
+
+
+Typical systems often contain over 1000 installed packages, with about
+twice as many textual configuration files residing in /etc. System
+administration tools to manage these dissimilar files hardly achieve
+their goals. Tools such as webmin or linuxconf suffer from the fact that
+they constantly need to adjust to small changes in configuration file
+formats and locations.  Moreover, they cannot accomodate easily
+inherited configuration parameters to simplify the configuration of
+multiple similar systems. Other tools have been developed for updating
+the configuration for groups of machines, including cfengine and hand
+tailored solutions with configuration files processed through the m4
+preprocessor and redistributed with rdist.
+
+
+Yet, in newer systems without legacy problems, the management of
+configuration information is being solved nicely. A few recent systems,
+in production today, are worth mentioning.
+
+
+The GNOME Configuration System consists in an API/library used by programs to
+get/set configuration information and receive notification, a daemon
+to access and cache the configuration entries and perform notification, and
+storage backends to read/write the configuration data from XML files
+or other sources. It is used for GNOME desktop applications configuration.
+Many configuration sources may be stacked, to allow for default, user,
+and mandatory settings. Other levels may be added, like a ¨department default¨
+level between the user and default level.
+
+
+The KDE desktop uses a simular system named kconfig.
+
+
+Debconf is another similar system, but closer to system administration.
+It is mostly used for installation time configuration data and thus only
+manages a small subset of the configuration information. Perhaps it could
+be used to manage even more configuration informations than it is currently.
+Most noteworthy is the highly successfull distributed aspect of it.
+Unlike in Webmin or Linuxconf, each package maintainer provides and
+updates the necessary interface between the package and the configuration
+system.
+
+
+Darwin/Mac OS X supports XML property lists to store configuration data and
+make it available through a well defined API. The configd daemon is used
+for notification.
+
+
+
+The emerging architecture
+
+
+Quite clearly there is a general trend towards structured configuration
+data, in XML files or SQL/LDAP databases, available through a simple API
+enabling multiple stacked sources. This simplifies system applications by
+removing all these custom configuration data parsers. It also allows
+configuration parameters inheritance which can simplify managing similar
+systems in a department, in a cluster, or even for diskless stations sharing
+a common NFS root (the topmost source would be selected based on the IP
+or Ethernet address).
+
+
+The architecture is composed of an API through which applications query
+and get/set/add/remove configuration parameters. The API should allow for
+for variable length lists (e.g., users in the password file) and different
+merging modes among stacked sources (e.g., list of panel applets which should
+be either merged with or replace those from other sources). Furthermore,
+negative entries may be helpful, when a higher level source needs to
+mask (remove) an entry from a lower level source.
+
+
+Computed entries is something else to consider. Often, several parameters
+depend on another parameter (netmask and dhcp dynamic range which depend
+on the host/network IP address). The dependencies must be tracked properly
+to insure correct updates and notification. This is similar to spreadsheet
+cells which may contain either a value or a formula. To specify a computed
+entry, a script file name or a script function could be entered.
+
+
+This API is implemented by a library connecting to the configuration
+daemon. Change notification could be sent to the application as an asynchronous
+message, a SIGHUP signal, or a SIGTERM leading to a full restart.
+
+
+The configuration daemon should be able to connect to several different
+configuration sources stacked from highest (mandatory) to lowest priority
+(default) settings. Each source may use a different access mechanism
+(XML file, LDAP, SQL database...) implemented by a corresponding backend,
+all implementing an API similar to the client API. As an optimisation, it
+could be helpful to have each source specify the configuration hierarchy
+subtree for which it contains entries. A backend which reads the existing
+/etc text files could be implemented, perhaps using the text to/from XML
+scripts provided in the Gnome Setup Tools.
+
+
+Finally, a configuration editor would use that API and allow viewing and
+editing the configuration parameters hierarchy. It could use a generic
+interface connected to several frontend (GTK, Web, Texte). A challenge is
+to clearly show which source provides which data element and where
+modifications will be written. It may be sufficient to simply change the
+sources stack (even looking at one at a time), see the effect, and assume
+that the topmost source is written to.
+
+
+Most existing configuration tools (e.g., Linuxconf, Webmin) have
+specific UI controls/druid designed for the various tasks. Is it possible
+to have only a generic interface to do the same job as efficiently?
+The computed values and the notification mechanisms may alleviate the
+need for most of the specific per subsystem configuration work often performed.
+
+
+Since the proposed API would closely resemble gconf and debconf, it could
+be possible to provide gateways such that gconf/debconf sources may be used by
+the new API and gconf/debconf tools could use the new sources.
+
+
+
+Possible Transitions
+
+
+Until all major applications use the new API and all configuration
+data is stored in structured databases (e.g., XML or LDAP), adapters
+to simplify the transition may be provided. A text backend would allow
+using the configuration editor, while the application still uses the
+text file (thus without the benefits of stacked sources). The text
+backend could be used as a converter from text to other formats like
+XML.
+
+
+The other way around, an adapter may be used to replace text configuration
+files for a yet unmodified application, thus providing the multi-source
+benefits of the configuration system. The adapter needs to intercept
+openings of /etc files. At user level this may be done by an
+LD_PRELOAD library replacing the open (and perhaps readdir, stat...) and
+returning a file descriptor to a pipe instead of to a real file.
+The pipe would be connected to an application using the
+configuration API and receiving or sending the normal textual content to
+the application. This would require associations between /etc files
+and configuration API adapters. It could be a simple convention checked by the
+LD_PRELOAD open: opening a file in /etc being a symbolic link to an executable
+script in /usr/lib/ConfigAdapters, is replaced by a popen on that file.
+
+
+
+Where to go first
+
+
+A simple, flexible and low overhead system is needed but above all the
+challenge is the migration of these thousands of applications with text based
+configuration files. Fortunately, most systems are customized by modifying
+only a small number of configuration files, typically 10 on a simple client,
+20 on a simple server and 30 on a more elaborate server. Frequently modified
+configuration files and associated applications include the following.
+
+
+/etc/network/interfaces (ifupdown)
+/etc/hostname (/etc/init.d/hostname.sh in sysvinit)
+/etc/firewall (/etc/init.d/firewall)
+/etc/lilo.conf (lilo)
+/etc/group (nsswitch)
+/etc/cups/client.conf (cups)
+/etc/fstab (mount, umount, swapon/getmnt in libc)
+/etc/passwd (nsswitch)
+/etc/shadow (nsswitch)
+/etc/sane.d/plustek.conf (sane)
+/etc/X11/XF86Config-4 (Xserver)
+/etc/modules (/etc/init.d/modutils)
+/etc/inittab (init in sysvinit)
+/etc/dhcpd.conf (dhcpd)
+/etc/apt/sources.list (apt)
+/etc/hosts (nsswitch)
+/etc/gdm/gdm.conf (gdm)
+/etc/apache/httpd.conf (apache)
+/etc/postfix/* (postfix)
+
+
+It is thus possible to migrate the applications one by one, until
+enough are converted to insure that most stations may be customized
+simply through the inheritable configuration sources. In the files
+mentioned, several are already accessed through an API (group, passwd,
+shadow, hosts) which could be used as wrapper to the new system, a few
+are only used from easy to modify scripts (hostname, firewall,
+modules), at least one is already managed by debconf (XF86Config-4),
+leaving a few frequently used configuration files requiring more work
+(interfaces, lilo, cups, fstab, inittab, dhcpd.conf, sources.list,
+gdm.conf, httpd.conf, postfix, sane).
+
+
+
+Possible Tasks
+
+
+- Develop the client and backend API. The two would be very similar except
+  perhaps that the client API may allow knowing or specifying the
+  configuration sources. A simple, flexible and efficient API/library, daemon,
+  and simple backend with minimal requirements is essential.
+
+
+- Implement text backends. Somewhat sidesteps the configuration system and
+  brings limited benefits. (Low priority).
+
+
+- Implement text file to API LD_PRELOAD wrapper. This is probably simpler than
+  trying to modify the applications without the original author consent. It
+  immediately brings the full benefits of the configuration system.
+
+
+- Configuration editor. While the editor may be refined over time, it is
+  an important component for the acceptance of the system.

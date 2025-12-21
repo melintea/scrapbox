@@ -1,0 +1,24 @@
+<!--
+        This file has been built automatically - do not edit directly
+        but edit .body file under the site/ folder and then run
+        ./makesite.sh and, after that run doxygen if necesary. 
+  -->
+
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<link href="doxygen.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+
+<table border="0" cellpadding="3" cellspacing="0" width="100%">
+    <tr>
+        <td width="33%">
+            <img src="../site/lynxx.jpg" border="0" width="161" height="155"
+             alt="Lynx image"> </td>
+        <td> <br><br> <b>LinCS</b> <br>
+            The System Configuration Tool <br>
+        </td>
+    </tr>
+<!-- /header -->

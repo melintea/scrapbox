@@ -1,0 +1,174 @@
+#! /bin/sh 
+
+#set -x
+
+#
+# Send ad nauseam signals to daemon. Has to stay alive.  
+#
+
+#
+# Config section.  
+#
+
+export CFGSINSTALL="/tmp/$USER/confi"
+export CFGS_TST_PREFIX='/tests'
+export TSTDIR=`pwd`
+
+MAXSIG=64
+
+#overwrite defaults
+if test -f ./tests.config; then
+    . ./tests.config
+fi
+
+
+#
+# needs bash!
+#
+trap sigint_trap 2
+echo "** "
+echo "** $0: press Ctrl-C to stop "
+echo "**"
+
+sigint_trap()
+{
+    echo "*** $0 exit..."
+    kill $dpid
+    rm $KEEP_RUNNING
+    exit
+}
+
+
+test_failure()
+{
+    if test -f ./core; then
+        echo "**** Core dumped !"
+        sigint_trap
+    fi
+    
+    pidd=`pidof cfgs_configd`
+    if test x"$pidd" = x""; then 
+        $TSTDIR/print_red "**** Daemon died! $dpid"
+        sigint_trap
+    fi
+}
+
+
+# ret 1 if signal $1 is not to be sent 
+skip_signal()
+{
+    # SIGINT    
+    if [ "$1" -eq "2" ]; then return 1; fi
+    # SIGILL
+    if [ "$1" -eq "4" ]; then return 1; fi
+    # SIGTRAP
+    if [ "$1" -eq "5" ]; then return 1; fi
+    # SIGABRT
+    if [ "$1" -eq "6" ]; then return 1; fi
+    # SIGBUS
+    if [ "$1" -eq "7" ]; then return 1; fi
+    # SIGKILL
+    if [ "$1" -eq "9" ]; then return 1; fi
+    # SIGSEGV
+    if [ "$1" -eq "11" ]; then return 1; fi
+    # SIGTERM
+    if [ "$1" -eq "15" ]; then return 1; fi
+    # SIGSTKFLT: stack fault
+    if [ "$1" -eq "16" ]; then return 1; fi
+    
+    # SIGCONT: FIXME - found that it kills the daemon !
+    #if [ "$1" -eq "18" ]; then return 1; fi
+    # SIGSTOP
+    #if [ "$1" -eq "19" ]; then return 1; fi
+    
+    # SIGXCPU
+    #if [ "$1" -eq "24" ]; then return 1; fi
+    # SIGXFSZ
+    #if [ "$1" -eq "25" ]; then return 1; fi
+    # SIGVTALRM
+    #if [ "$1" -eq "26" ]; then return 1; fi
+    # SIGPROF
+    #if [ "$1" -eq "27" ]; then return 1; fi
+    # SIGPWR
+    #if [ "$1" -eq "30" ]; then return 1; fi
+    # SIGSYS
+    #if [ "$1" -eq "31" ]; then return 1; fi
+    # ??
+    #if [ "$1" -eq "35" ]; then return 1; fi
+    # ??
+    #if [ "$1" -eq "36" ]; then return 1; fi
+    
+    return 0
+}
+
+
+#
+# Might be difficult to get the daemon started if compiled with
+# RANDOM_NULL
+#
+while [ 1 ]; do
+    ./run_command $CFGSINSTALL/bin/cfgs_configd
+    sleep 3
+    dpid=`pidof cfgs_configd`
+    if test x"$dpid" != x""; then 
+        $TSTDIR/print_red "**** cfgs_configd started: $dpid"
+        break 
+    fi
+done
+
+
+#
+# start other test tools 
+#
+#./daemon_stress &
+
+
+
+KEEP_RUNNING='./.run_stress'
+touch $KEEP_RUNNING
+
+
+MAXLOOP=10
+#
+# MAXLOOP signals sent 
+#
+sig=0
+while test $sig -le $MAXSIG; do
+    sig=`echo $sig + 1 | bc`
+    
+    skip_signal $sig
+    if [ "$?" -eq "1" ]; then
+        continue
+    fi
+
+    $TSTDIR/print_blue "*** Sending $sig... "
+
+    i=0
+    while test $i -le $MAXLOOP; do
+        echo "***  [$i] kill -s $sig $dpid"
+        eval "kill -s $sig $dpid"
+        i=`echo $i + 1 | bc`
+        
+        test_failure
+    done
+done
+
+
+#
+# random signals
+#
+while test -f $KEEP_RUNNING; do
+    rnd=$RANDOM
+    sig=`echo $rnd % $MAXSIG | bc`
+
+    skip_signal $sig
+    if [ "$?" -eq "1" ]; then
+        continue
+    fi
+    
+    echo "*** kill -s $sig $dpid"
+    eval "kill -s $sig $dpid"
+
+    test_failure
+done
+

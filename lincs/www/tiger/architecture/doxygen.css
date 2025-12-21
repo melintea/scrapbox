@@ -1,0 +1,119 @@
+P { font-family: vendana, arial, sans-serif; }
+H1 { 
+    text-align: center; 
+    font-family: vendana, arial, sans-serif; 
+}
+H2 { 
+    font-family: vendana, arial, sans-serif; 
+}
+H3 { 
+    font-family: vendana, arial, sans-serif; 
+}
+CAPTION { 
+    font-weight: bold;
+    font-family: vendana, arial, sans-serif; 
+}
+A.qindex { font-family: vendana, arial, sans-serif; }
+A.qindexRef { font-family: vendana, arial, sans-serif; }
+A.el { 
+    text-decoration: none; 
+    font-weight: bold; font-family: vendana, arial, sans-serif; 
+}
+A.elRef { font-weight: bold; font-family: vendana, arial, sans-serif; }
+A.code { text-decoration: none; font-weight: normal; color: #4444ee }
+A.codeRef { font-weight: normal; color: #4444ee }
+A:hover { 
+    text-decoration: none; 
+    background-color: #f2f2ff; 
+    font-family: vendana, arial, sans-serif; 
+}
+DL.el { 
+    margin-left: -1cm;
+    font-family: vendana, arial, sans-serif;
+}
+DIV.fragment { 
+    width: 100%; 
+    border: none; 
+    background-color: #eeeeee;
+    font-family: vendana, arial, sans-serif;
+}
+DIV.ah { 
+    background-color: black; 
+    font-weight: bold; 
+    color: #ffffff; 
+    margin-bottom: 3px; 
+    margin-top: 3px; 
+    font-family: vendana, arial, sans-serif; 
+}
+TD { 
+    font-family: vendana, arial, sans-serif; 
+}
+TD.md { 
+    background-color: #f2f2ff; 
+    font-weight: bold; 
+    font-family: vendana, arial, sans-serif; 
+}
+TD.mdname1 { 
+    background-color: #f2f2ff; 
+    font-weight: bold; 
+    color: #602020; 
+    font-family: vendana, arial, sans-serif; 
+}
+TD.mdname { 
+    background-color: #f2f2ff; 
+    font-weight: bold; 
+    color: #602020; 
+    width: 600px; 
+    font-family: vendana, arial, sans-serif; 
+}
+DIV.groupHeader { 
+    margin-left: 16px; 
+    margin-top: 12px; 
+    margin-bottom: 6px; 
+    font-weight: bold; 
+    font-family: vendana, arial, sans-serif; 
+}
+DIV.groupText { 
+    margin-left: 16px; 
+    font-style: italic; 
+    font-size: smaller; 
+    font-family: vendana, arial, sans-serif; 
+}
+BODY { 
+    background: white; 
+    color: black; 
+    font-family: vendana, arial, sans-serif; 
+}
+TD.indexkey { 
+   background-color: #eeeeff; 
+   font-weight: bold; 
+   padding-right  : 10px; 
+   padding-top    : 2px; 
+   padding-left   : 10px; 
+   padding-bottom : 2px; 
+   margin-left    : 0px; 
+   margin-right   : 0px; 
+   margin-top     : 2px; 
+   margin-bottom  : 2px;  
+   font-family: vendana, arial, sans-serif;
+}
+TD.indexvalue { 
+   background-color: #eeeeff; 
+   font-style: italic; 
+   padding-right  : 10px; 
+   padding-top    : 2px; 
+   padding-left   : 10px; 
+   padding-bottom : 2px; 
+   margin-left    : 0px; 
+   margin-right   : 0px; 
+   margin-top     : 2px; 
+   margin-bottom  : 2px;
+   font-family: vendana, arial, sans-serif;  
+}
+span.keyword       { color: #008000 }
+span.keywordtype   { color: #604020 }
+span.keywordflow   { color: #e08000 }
+span.comment       { color: #800000 }
+span.preprocessor  { color: #806020 }
+span.stringliteral { color: #002080 }
+span.charliteral   { color: #008080 }

@@ -1,0 +1,23 @@
+
+<h1> Download </h1>
+
+    <p><b>Packages</b></p>
+    <ul>
+    <!-- http://lincs.tigris.org/servlets/ProjectDocumentList?folderID=2275 -->
+    <li> latest <a href="http://lincs.tigris.org/servlets/ProjectDocumentList?folderID=2275">LinCS distribution</a>.&nbsp;</li>
+    <li> latest <a href="http://lincs.tigris.org/servlets/ProjectDocumentList?folderID=2275">LinCS documentation</a>.&nbsp;</li>
+    <li> latest <a href="http://lincs.tigris.org/servlets/ProjectDocumentList?folderID=2275">tiger distribution</a>.&nbsp;</li>
+    </ul>
+    <p>&nbsp;</p>
+        
+    <p><b>Cvs access</b> (I have not checked if anonymous access is available)</p>
+    <p><pre>
+    cvs -d :pserver:anon@cvs.tigris.org:/cvs login
+    cvs -d :pserver:anon@cvs.tigris.org:/cvs checkout lincs
+    </pre></p>
+    <p>&nbsp;</p>
+        
+    <p><b>Sending a bug fix</b></p>
+    <p>See the contact page.</p>
+
+<p> 

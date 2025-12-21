@@ -1,0 +1,14 @@
+<!-- menu -->    
+    <tr>
+        <td colspan="2" bgcolor="#666633"> <!-- bgcolor="#FF0000" -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            &nbsp;&nbsp; <a href="../site/about.html" style="color: #FFFFFF">About</a>
+            &nbsp;&nbsp; <a href="../site/index.html" style="color: #FFFFFF">News</a>
+            &nbsp;&nbsp; <a href="../site/docs.html" style="color: #FFFFFF">Docs</a>
+            &nbsp;&nbsp; <a href="../site/download.html" style="color: #FFFFFF">Download</a>
+            &nbsp;&nbsp; <a href="../site/contact.html" style="color: #FFFFFF">Contact</a>
+            &nbsp;&nbsp; 
+        </table>
+        </td>
+    </tr>
+<!-- /menu -->

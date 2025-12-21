@@ -1,0 +1,13 @@
+All programs (clients, daemons and API libraries) are using this tools library
+by linking with -lcst.
+
+It contains:
+-memory manipulation wrappers
+-test mechanisms
+-integrity check mechanisms
+-logging tools
+-socket wrappers
+-mutex wrappers
+-lists, hashes, etc
+-specific structures & manipulation functions
+-etc.
