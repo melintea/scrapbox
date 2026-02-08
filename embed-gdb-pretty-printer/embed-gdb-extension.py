@@ -147,7 +147,8 @@ def main(args, stdin, stdout):
                 header.write('  ".ascii \\"')
         
                 line = line[:-1]
-                header.write(line.replace('"', '\'')) # fix quote " => '
+                #header.write(line.replace('"', '\'')) # fix quote " => '
+                header.write(line.replace('"', "\\\\\\\"")) # fix quote 
         
                 header.write('\\\\n\\"\\n"\n')
 

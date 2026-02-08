@@ -18,6 +18,7 @@ test: $(TARGET)
 		     -ex "print p" -ex "continue" \
 		     -ex "quit" \
 		     --args $(TARGET) | grep "Location="
+	@echo "== Pass =="
 
 $(TARGET): *.cpp gdb-ppe.h Makefile 
 	g++ *.cpp $(FLAGS) -o $@
