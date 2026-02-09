@@ -1,6 +1,8 @@
 //
 // https://github.com/epasveer/seer/wiki/Gdb%27s-Pretty-Print-feature
 //
+// @see https://blog.ganets.ky/LibcxxPrettyPrinters/
+//
 
 #include "gdb-ppe.h" // LocationPrinter gdb pretty printer
 
