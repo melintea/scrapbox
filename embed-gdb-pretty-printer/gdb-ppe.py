@@ -3,6 +3,13 @@
 #
 
 import gdb
+import os
+
+#script_dir = os.path.dirname(os.path.abspath(sys.argv[0])) # sys.argv[0] is empty
+#print("pp: ", script_dir)
+
+objfile = gdb.current_objfile()
+print("- pp: ", objfile.filename)
 
 # The PrettyPrinter object.
 class LocationPrinter:
