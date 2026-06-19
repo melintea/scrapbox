@@ -1,27 +1,32 @@
 #include <stdexec/execution.hpp>
 #include <exec/static_thread_pool.hpp>
 
-#include <cstdio>
+#include <iostream>
+#include <cassert>
 
 namespace ex = stdexec;
 
 int main() {
     //auto sched = ex::get_parallel_scheduler(); //  crash
-    exec::static_thread_pool pool(3);
+    exec::static_thread_pool pool(6);
     auto                     sched = pool.get_scheduler();
 
     auto fun   = [](int i) { 
-        std::printf("  %d\n", i);
+        if (i ==0) {
+            std::cout << std::hex << std::this_thread::get_id() << ": " << i << '\n'; 
+	}
         return i * i; 
     };
 
     // Build a lazy pipeline: three squares, computed in parallel.
-    auto work = ex::when_all(ex::on(sched, ex::just(0) | ex::then(fun)),
-                             ex::on(sched, ex::just(1) | ex::then(fun)),
-                             ex::on(sched, ex::just(2) | ex::then(fun)));
+    auto work = ex::when_all(ex::on(sched, ex::just(0) | ex::then(fun) | ex::then(fun)),
+                             ex::on(sched, ex::just(1) | ex::then(fun) | ex::then(fun)),
+                             ex::on(sched, ex::just(2) | ex::then(fun) | ex::then(fun)) //16
+			     );
 
     // Launch the work and wait for the result.
     auto [i, j, k] = ex::sync_wait(std::move(work)).value();
-    std::printf("%d %d %d\n", i, j, k); // prints "0 1 4"
+    std::cout << std::dec << i << ' ' <<  j << ' ' << k << "\n"; 
+    assert(i == 0 && j == 1 && k ==16);
 }
 
