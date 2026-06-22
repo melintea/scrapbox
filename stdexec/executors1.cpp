@@ -31,7 +31,7 @@ int main() {
         std::cout << std::dec << i << ' ' <<  j << ' ' << k << "\n"; 
         assert(i == 0 && j == 1 && k ==16);
     }
-#if 0 // no split
+#if 0 // no working split
     {
         // distribute strategy 1
         // 1. A predecessor sender that produces our unique value
