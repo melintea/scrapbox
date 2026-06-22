@@ -1,4 +1,5 @@
 #include <stdexec/execution.hpp>
+#include <exec/split.hpp>
 #include <exec/static_thread_pool.hpp>
 
 #include <sstream>
@@ -31,29 +32,28 @@ int main() {
         std::cout << std::dec << i << ' ' <<  j << ' ' << k << "\n"; 
         assert(i == 0 && j == 1 && k ==16);
     }
-#if 0 // no working split
     {
         // distribute strategy 1
         // 1. A predecessor sender that produces our unique value
         auto predecessorSender = ex::just(42);
 
         // 2. Wrap it in 'split' so multiple children can safely read from it
-        auto sharedVal = ex::split(std::move(predecessorSender));
+	// Deprecated ex::split
+        auto sharedVal = exec::split(std::move(predecessorSender));
 
         // 3. Use 'when_all' to fan out to children, passing the shared sender to each
         auto work = ex::when_all(
             sharedVal | ex::then([](int val) {
-                std::cout << "Child A received: " << val << "\n";
+                std::cout << "Child A: " << val << "\n";
             }),
             sharedVal | ex::then([](int val) {
-                std::cout << "Child B received: " << val << "\n";
+                std::cout << "Child B: " << val << "\n";
             })
         );
 
         // Run the pipeline
         ex::sync_wait(std::move(work));
     }
-#endif
     {
         // distribute strategy 2
         auto work = ex::just(42)/*Predecessor*/ | ex::let_value(
