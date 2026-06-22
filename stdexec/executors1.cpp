@@ -1,6 +1,7 @@
 #include <stdexec/execution.hpp>
 #include <exec/static_thread_pool.hpp>
 
+#include <sstream>
 #include <iostream>
 #include <cassert>
 
@@ -12,9 +13,9 @@ int main() {
     auto                     sched = pool.get_scheduler();
 
     auto fun   = [](int i) { 
-        if (i ==0) {
-            std::cout << std::hex << std::this_thread::get_id() << ": " << i << '\n'; 
-	}
+        std::ostringstream oss;
+        oss << std::hex << std::this_thread::get_id() << ": " << i << '\n'; 
+	std::cout << oss.str();
         return i * i; 
     };
 
