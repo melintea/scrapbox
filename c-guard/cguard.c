@@ -13,7 +13,7 @@ static inline void int_cleanup(int* px)
 
 static inline void mem_cleanup(void* pp)
 {
-    void* p = *((void**)pp);
+    __auto_type p = *((void**)pp);
     printf("mem_cleanup: %p\n", p);
     free(p);
 }
