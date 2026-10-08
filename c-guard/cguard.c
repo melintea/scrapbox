@@ -27,6 +27,9 @@ static inline void fopen_cleanup(void* pp)
 
 int main()
 {
+    int x __attribute__((cleanup(int_cleanup))) = 42;
+    char* p __attribute__((cleanup(mem_cleanup))) = strdup("some str");
+    
     {
         int x __attribute__((cleanup(int_cleanup))) = 42;
     }
