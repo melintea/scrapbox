@@ -11,12 +11,21 @@
 //  * At Arm() time we create a userfaultfd, perform the UFFDIO_API handshake,
 //    and pre-spawn a monitor thread plus pre-allocate every buffer used on the
 //    dump path. Nothing on the dump path allocates afterwards.
-//  * On Trigger() we enumerate /proc/self/maps, WP-register and WP-protect the
-//    large mutable private regions, then stream every page to an ELF core file
-//    on the dumper thread. Mutator writes that race the dumper trip a WP fault;
-//    the monitor thread preserves the original page BEFORE releasing the writer.
-//  * A per-page atomic claim bitmap guarantees each page is written exactly
-//    once, by whichever of {dumper, monitor} reaches it first.
+//  * On Trigger() we enumerate /proc/self/maps and, via /proc/self/pagemap,
+//    WP-register and WP-protect only the *resident* pages of large mutable
+//    private regions. Non-resident pages read as zero at trigger time T, so
+//    they need no protection: their value at T is zero regardless of any later
+//    write. (userfaultfd WP delivers a fault only on a write to an already-
+//    resident page; a write to a non-resident page is an ordinary zero-fill
+//    fault with no uffd notification -- so protecting non-resident pages would
+//    be both pointless and a silent snapshot gap. Verified empirically.)
+//  * The dump runs ENTIRELY on the monitor thread. The caller's Trigger()
+//    thread only kicks the dump and waits, so the caller's stack is never WP-
+//    protected and cannot self-fault. The region list and all per-dump
+//    bookkeeping live in storage pre-allocated at Arm() and never WP-registered.
+//  * Mutator writes that race the dumper trip a WP fault; the monitor preserves
+//    the original page BEFORE releasing the writer. A per-page atomic claim
+//    bitmap guarantees each page is written exactly once.
 //
 // This is a standalone experiment module: libc + Linux headers only.
 

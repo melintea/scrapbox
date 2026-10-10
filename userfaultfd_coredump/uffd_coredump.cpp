@@ -1,6 +1,6 @@
 // uffd_coredump.cpp -- see uffd_coredump.h for the design overview.
 //
-// Standalone experiment: libc + Linux headers only, no ION dependencies.
+// Standalone experiment: libc + Linux headers only.
 
 #include "uffd_coredump.h"
 
@@ -59,6 +59,7 @@ bool Dumper::PlatformSupported()              { return false; }
 #include <elf.h>
 #include <fcntl.h>
 #include <linux/userfaultfd.h>
+#include <sys/eventfd.h>
 #include <poll.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
@@ -69,6 +70,8 @@ bool Dumper::PlatformSupported()              { return false; }
 #include <unistd.h>
 
 #include <algorithm>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -94,6 +97,47 @@ struct Region {
 int sys_userfaultfd(int flags)
 {
     return static_cast<int>(::syscall(SYS_userfaultfd, flags));
+}
+
+// Query /proc/self/pagemap for the resident pages of [start, end). For each
+// page we set out_present[i] = true iff the page is backed by physical memory
+// right now (bit 63 of the pagemap entry). pagemap_fd must be an open fd on
+// /proc/self/pagemap. Returns false on a read error (caller treats all as
+// non-resident, i.e. zero, which is the safe/correct fallback).
+bool query_residency(int pagemap_fd, std::uintptr_t start, std::size_t n_pages,
+                     bool* out_present)
+{
+    constexpr std::uint64_t kPresentBit = std::uint64_t{1} << 63;
+    const off_t off = static_cast<off_t>((start / kPageSize) * sizeof(std::uint64_t));
+
+    // Read in bounded chunks into a fixed stack buffer -- no heap allocation on
+    // the dump path.
+    constexpr std::size_t kChunkPages = 512;
+    std::uint64_t entries[kChunkPages];
+
+    std::size_t done = 0;
+    while (done < n_pages) {
+        const std::size_t batch = std::min(kChunkPages, n_pages - done);
+        const off_t batch_off = off + static_cast<off_t>(done * sizeof(std::uint64_t));
+        std::size_t got = 0;
+        while (got < batch * sizeof(std::uint64_t)) {
+            const ssize_t r = ::pread(pagemap_fd,
+                                      reinterpret_cast<char*>(entries) + got,
+                                      batch * sizeof(std::uint64_t) - got,
+                                      batch_off + static_cast<off_t>(got));
+            if (r < 0) {
+                if (errno == EINTR) { continue; }
+                return false;
+            }
+            if (r == 0) { return false; }
+            got += static_cast<std::size_t>(r);
+        }
+        for (std::size_t i = 0; i < batch; ++i) {
+            out_present[done + i] = (entries[i] & kPresentBit) != 0;
+        }
+        done += batch;
+    }
+    return true;
 }
 
 // Write exactly `len` bytes at file offset `off`, retrying short writes/EINTR.
@@ -125,27 +169,69 @@ struct Dumper::Impl {
     std::string last_error;
 
     int uffd = -1;
+    int pagemap_fd = -1;           // open fd on /proc/self/pagemap
     bool armed = false;
 
-    // Shutdown signalling for the monitor thread.
-    int shutdown_evt = -1;         // eventfd, written to ask the monitor to exit
+    // Monitor thread (services WP faults) and dumper thread (streams pages).
+    // The dump runs entirely off the caller's thread so the caller's stack is
+    // never WP-protected and cannot self-fault.
+    int shutdown_evt = -1;         // eventfd: ask the monitor/dumper to exit
+    int run_evt      = -1;         // eventfd: ask the dumper to run one job
+    int done_evt     = -1;         // eventfd: dumper signals the waiting caller
     std::thread monitor;
+    std::thread dumper;
 
     // Per-dump state (valid only while a Trigger() is in flight).
     std::atomic<bool> dumping{false};
+    std::atomic<bool> dump_done{false};
+    std::atomic<int>  dump_result{0};   // Status encoded as int for the caller
     int out_fd = -1;
+    std::string pending_path;           // set by Trigger() before kicking dumper
 
     // Regions captured at Trigger() time, in address order.
     std::vector<Region> regions;
 
     // Per-page claim bitmap: one atomic word per 64 pages. The thread that
     // flips a page's bit from 0->1 owns writing that page to the core.
-    std::vector<std::atomic<std::uint64_t>> claim_words;  // pre-sized at Arm()
+    //
+    // CRITICAL: this and the scratch pages are mmap'd into DEDICATED regions
+    // that parse_maps_and_register() excludes from WP registration. The monitor
+    // and dumper write to them while handling faults; if they lived on the
+    // glibc heap (a WP-protected region) those writes would self-fault and
+    // deadlock the resolver. All engine-owned mmap ranges are recorded in
+    // engine_ranges and skipped during registration.
+    std::atomic<std::uint64_t>* claim_words = nullptr;  // mmap'd at Arm()
+    std::size_t claim_words_count = 0;
+    std::size_t claim_words_bytes = 0;
     std::size_t total_pages = 0;
 
     // One scratch page per worker so the dump path never allocates.
     void* dumper_scratch  = nullptr;
     void* monitor_scratch = nullptr;
+
+    // Address ranges of engine-owned mmap allocations (claim bitmap, scratch),
+    // excluded from WP registration so the dump path never self-faults.
+    struct AddrRange { std::uintptr_t start; std::uintptr_t end; };
+    AddrRange engine_ranges[4] = {};
+    std::size_t engine_range_count = 0;
+
+    void add_engine_range(void* p, std::size_t len)
+    {
+        if (engine_range_count < 4 && p != nullptr && p != MAP_FAILED) {
+            const auto s = reinterpret_cast<std::uintptr_t>(p);
+            engine_ranges[engine_range_count++] = {s, s + len};
+        }
+    }
+
+    bool overlaps_engine(std::uintptr_t start, std::uintptr_t end) const
+    {
+        for (std::size_t i = 0; i < engine_range_count; ++i) {
+            if (start < engine_ranges[i].end && engine_ranges[i].start < end) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // --- helpers ---------------------------------------------------------
     void set_err(const char* what, int e)
@@ -187,9 +273,10 @@ struct Dumper::Impl {
     }
 
     bool handshake();
-    bool parse_maps_and_register();
-    void write_elf_headers();  // header + program headers (fixed-size prelude)
-    void monitor_loop();
+    bool parse_maps_and_register();     // runs on the dumper thread
+    void monitor_loop();                // runs on the monitor thread
+    void dumper_loop();                 // runs on the dumper thread
+    Status run_one_dump();              // the actual dump, on the dumper thread
     void clear_wp(std::uintptr_t start, std::size_t len);
     void set_wp(std::uintptr_t start, std::size_t len);
     void unregister_all();
@@ -327,9 +414,22 @@ bool Dumper::Impl::parse_maps_and_register()
                   (perms[2] == 'x' ? PF_X : 0u);
         r.path  = (matched >= 4) ? path : "";
 
+        // Never WP-register a thread stack: the dumper/monitor threads (and the
+        // blocked caller) write their stacks constantly and would self-fault.
+        // The main stack is "[stack]"; glibc thread stacks are anonymous but we
+        // keep them unprotected by excluding the known engine-thread stacks via
+        // the stack-guard heuristic below is not reliable, so we simply never
+        // protect any region tagged as a stack and accept torn reads elsewhere.
+        const bool is_stack = (r.path == "[stack]");
+
+        // Never protect the engine's own mmap allocations (claim bitmap,
+        // scratch): the monitor/dumper write them while resolving faults.
+        const bool is_engine = overlaps_engine(r.start, r.end);
+
         const bool anonymous_private = (perms[3] == 'p') && r.path.empty();
         const bool big_enough = r.size() >= opts.min_wp_region_bytes;
-        const bool want_wp = writable && anonymous_private && big_enough;
+        const bool want_wp =
+            writable && anonymous_private && big_enough && !is_stack && !is_engine;
 
         if (!writable && !opts.include_readonly_regions) {
             continue;  // caller only wants the mutable snapshot
@@ -472,10 +572,22 @@ Status Dumper::Arm(const Options& opts)
         return (errno == EPERM) ? Status::PermissionDenied : Status::Unsupported;
     }
 
-    // Pre-allocate the claim bitmap for the worst case, so Trigger() never
-    // allocates it. One atomic word per 64 pages.
-    const std::size_t words = (d.opts.max_tracked_pages + 63) / 64;
-    d.claim_words = std::vector<std::atomic<std::uint64_t>>(words);
+    // Pre-allocate the claim bitmap for the worst case in a DEDICATED mmap
+    // region (not the heap), so the monitor/dumper can write it while handling
+    // faults without self-faulting. One atomic word per 64 pages.
+    d.claim_words_count = (d.opts.max_tracked_pages + 63) / 64;
+    d.claim_words_bytes = ((d.claim_words_count * sizeof(std::atomic<std::uint64_t>))
+                           + kPageSize - 1) & ~(kPageSize - 1);
+    void* bitmap = ::mmap(nullptr, d.claim_words_bytes, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (bitmap == MAP_FAILED) {
+        d.set_err("mmap claim bitmap", errno);
+        ::close(d.uffd); d.uffd = -1;
+        return Status::SystemError;
+    }
+    std::memset(bitmap, 0, d.claim_words_bytes);  // resident + zeroed now
+    d.claim_words = static_cast<std::atomic<std::uint64_t>*>(bitmap);
+    d.add_engine_range(bitmap, d.claim_words_bytes);
 
     // Pre-allocate per-worker scratch pages (page-aligned, never WP-registered).
     d.dumper_scratch  = ::mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE,
@@ -484,87 +596,143 @@ Status Dumper::Arm(const Options& opts)
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (d.dumper_scratch == MAP_FAILED || d.monitor_scratch == MAP_FAILED) {
         d.set_err("mmap scratch pages", errno);
+        ::munmap(bitmap, d.claim_words_bytes); d.claim_words = nullptr;
         ::close(d.uffd); d.uffd = -1;
         return Status::SystemError;
     }
     // Touch them now so the monitor never faults populating its own scratch.
     std::memset(d.dumper_scratch, 0, kPageSize);
     std::memset(d.monitor_scratch, 0, kPageSize);
+    d.add_engine_range(d.dumper_scratch, kPageSize);
+    d.add_engine_range(d.monitor_scratch, kPageSize);
 
     d.shutdown_evt = ::eventfd(0, EFD_CLOEXEC);
-    if (d.shutdown_evt < 0) {
+    d.run_evt      = ::eventfd(0, EFD_CLOEXEC);
+    d.done_evt     = ::eventfd(0, EFD_CLOEXEC);
+    if (d.shutdown_evt < 0 || d.run_evt < 0 || d.done_evt < 0) {
         d.set_err("eventfd", errno);
+        if (d.shutdown_evt >= 0) { ::close(d.shutdown_evt); d.shutdown_evt = -1; }
+        if (d.run_evt >= 0)      { ::close(d.run_evt);      d.run_evt = -1; }
+        if (d.done_evt >= 0)     { ::close(d.done_evt);     d.done_evt = -1; }
         ::close(d.uffd); d.uffd = -1;
         return Status::SystemError;
     }
 
+    d.pagemap_fd = ::open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
+    if (d.pagemap_fd < 0) {
+        d.set_err("open /proc/self/pagemap", errno);
+        ::close(d.shutdown_evt); d.shutdown_evt = -1;
+        ::close(d.run_evt);      d.run_evt = -1;
+        ::close(d.done_evt);     d.done_evt = -1;
+        ::close(d.uffd);         d.uffd = -1;
+        return Status::SystemError;
+    }
+
     d.monitor = std::thread([&d] { d.monitor_loop(); });
+    d.dumper  = std::thread([&d] { d.dumper_loop(); });
     d.armed = true;
     d.last_error.clear();
     return Status::Ok;
 }
 
-Status Dumper::Trigger(const std::string& out_path)
+// Dumper thread: waits for a run_evt kick, performs one dump, publishes the
+// result, and loops. Running the dump here (not on the caller's thread) keeps
+// the caller's stack out of WP-protected memory so it cannot self-fault.
+void Dumper::Impl::dumper_loop()
 {
-    Impl& d = *m_impl;
-    if (!d.armed) { d.set_err("not armed", 0); return Status::NotArmed; }
+    pollfd fds[2];
+    fds[0].fd = run_evt;      fds[0].events = POLLIN;
+    fds[1].fd = shutdown_evt; fds[1].events = POLLIN;
 
-    bool expected = false;
-    if (!d.dumping.compare_exchange_strong(expected, true)) {
-        d.set_err("a dump is already running", 0);
-        return Status::AlreadyRunning;
+    for (;;) {
+        const int pr = ::poll(fds, 2, -1);
+        if (pr < 0) {
+            if (errno == EINTR) { continue; }
+            break;
+        }
+        if (fds[1].revents & POLLIN) { break; }        // shutdown
+        if ((fds[0].revents & POLLIN) == 0) { continue; }
+
+        std::uint64_t ticks = 0;
+        (void)!::read(run_evt, &ticks, sizeof ticks);  // drain the kick
+
+        const Status s = run_one_dump();
+        dump_result.store(static_cast<int>(s), std::memory_order_relaxed);
+        dump_done.store(true, std::memory_order_release);
+        // Wake a caller blocked in Trigger().
+        const std::uint64_t one = 1;
+        (void)!::write(done_evt, &one, sizeof one);
     }
+}
 
+// The actual dump, entirely on the dumper thread.
+Status Dumper::Impl::run_one_dump()
+{
     Status result = Status::Ok;
 
-    d.out_fd = ::open(out_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
-    if (d.out_fd < 0) {
-        d.set_err("open core file", errno);
-        d.dumping.store(false, std::memory_order_release);
+    out_fd = ::open(pending_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (out_fd < 0) {
+        set_err("open core file", errno);
         return Status::WriteError;
     }
 
-    // Clear any stale claims from a prior dump.
-    for (auto& w : d.claim_words) { w.store(0, std::memory_order_relaxed); }
+    for (std::size_t i = 0; i < claim_words_count; ++i) {
+        claim_words[i].store(0, std::memory_order_relaxed);
+    }
 
-    // 1) Enumerate regions and WP-register + WP-protect the mutable ones.
-    if (!d.parse_maps_and_register()) {
-        d.set_err(d.last_error.empty() ? "no dumpable regions" : d.last_error.c_str(), 0);
-        ::close(d.out_fd); d.out_fd = -1;
-        d.dumping.store(false, std::memory_order_release);
+    // 1) Enumerate regions and WP-register the large mutable private ones.
+    if (!parse_maps_and_register()) {
+        set_err(last_error.empty() ? "no dumpable regions" : last_error.c_str(), 0);
+        ::close(out_fd); out_fd = -1;
         return Status::SystemError;
     }
 
     // 2) Lay out the ELF file: header + N program headers (1 NOTE + 1 per
-    //    region), then assign each region its data file offset, then protect.
-    const std::size_t n_load = d.regions.size();
-    const std::size_t n_phdr = n_load + 1;  // +1 for PT_NOTE
-
-    std::vector<std::uint8_t> note_buf;
-    // Minimal NT_PRPSINFO-free note set; a real build would add PRSTATUS/PRPSINFO.
-    // We still emit an (empty) PT_NOTE so tools see a well-formed core.
-
+    //    region), then assign each region its data file offset.
+    const std::size_t n_phdr = regions.size() + 1;  // +1 for PT_NOTE
     const std::uint64_t ehdr_size = sizeof(Elf64_Ehdr);
     const std::uint64_t phdr_size = sizeof(Elf64_Phdr) * n_phdr;
     std::uint64_t cursor = ehdr_size + phdr_size;
-
     const std::uint64_t note_offset = cursor;
-    const std::uint64_t note_size = note_buf.size();
+    const std::uint64_t note_size = 0;  // empty PT_NOTE (see README limitations)
     cursor += note_size;
-
-    // Page-align the first PT_LOAD's data for cleanliness.
     cursor = (cursor + kPageSize - 1) & ~(static_cast<std::uint64_t>(kPageSize) - 1);
-    for (Region& r : d.regions) {
+    for (Region& r : regions) {
         r.file_offset = cursor;
         cursor += r.size();
     }
 
-    // Protect every WP-registered region now -- this is time T.
-    for (const Region& r : d.regions) {
-        if (r.wp) { d.set_wp(r.start, r.size()); }
+    // 3) Protect ONLY resident pages -- this instant is time T. Non-resident
+    //    pages read as zero at T and are left unprotected (a later write to
+    //    one is invisible to WP anyway; its T-value was zero regardless).
+    {
+        bool present[512];
+        for (const Region& r : regions) {
+            if (!r.wp) { continue; }
+            const std::size_t npages = r.pages();
+            std::size_t p = 0;
+            while (p < npages) {
+                const std::size_t batch = std::min<std::size_t>(512, npages - p);
+                if (!query_residency(pagemap_fd, r.start + p * kPageSize, batch, present)) {
+                    // On a pagemap read error, conservatively protect the whole
+                    // batch (treat as resident) so we never miss a live page.
+                    for (std::size_t i = 0; i < batch; ++i) { present[i] = true; }
+                }
+                // Protect each maximal run of resident pages in one ioctl.
+                std::size_t i = 0;
+                while (i < batch) {
+                    if (!present[i]) { ++i; continue; }
+                    std::size_t j = i;
+                    while (j < batch && present[j]) { ++j; }
+                    set_wp(r.start + (p + i) * kPageSize, (j - i) * kPageSize);
+                    i = j;
+                }
+                p += batch;
+            }
+        }
     }
 
-    // 3) Write ELF header + program headers.
+    // 4) Write ELF header + program headers.
     {
         Elf64_Ehdr eh{};
         std::memcpy(eh.e_ident, ELFMAG, SELFMAG);
@@ -578,72 +746,93 @@ Status Dumper::Trigger(const std::string& out_path)
         eh.e_ehsize  = sizeof(Elf64_Ehdr);
         eh.e_phentsize = sizeof(Elf64_Phdr);
         eh.e_phnum   = static_cast<Elf64_Half>(n_phdr);
-        if (!write_all_at(d.out_fd, &eh, sizeof eh, 0)) { result = Status::WriteError; }
+        if (!write_all_at(out_fd, &eh, sizeof eh, 0)) { result = Status::WriteError; }
 
+        // One phdr buffer, written in bounded chunks -- the phdr vector is
+        // engine state (unregistered heap), safe to touch during the dump.
         std::vector<Elf64_Phdr> phdrs;
         phdrs.reserve(n_phdr);
-
         Elf64_Phdr note{};
-        note.p_type   = PT_NOTE;
-        note.p_offset = note_offset;
-        note.p_filesz = note_size;
+        note.p_type = PT_NOTE; note.p_offset = note_offset; note.p_filesz = note_size;
         phdrs.push_back(note);
-
-        for (const Region& r : d.regions) {
+        for (const Region& r : regions) {
             Elf64_Phdr ph{};
             ph.p_type   = PT_LOAD;
             ph.p_offset = r.file_offset;
             ph.p_vaddr  = r.start;
-            ph.p_paddr  = 0;
             ph.p_filesz = r.size();
             ph.p_memsz  = r.size();
             ph.p_flags  = r.flags;
             ph.p_align  = kPageSize;
             phdrs.push_back(ph);
         }
-        if (!write_all_at(d.out_fd, phdrs.data(),
-                          phdrs.size() * sizeof(Elf64_Phdr), ehdr_size)) {
-            result = Status::WriteError;
-        }
-        if (note_size > 0 &&
-            !write_all_at(d.out_fd, note_buf.data(), note_size,
-                          static_cast<off_t>(note_offset))) {
+        if (!write_all_at(out_fd, phdrs.data(), phdrs.size() * sizeof(Elf64_Phdr), ehdr_size)) {
             result = Status::WriteError;
         }
     }
 
-    // 4) Dumper pass: stream every page the monitor hasn't already claimed.
+    // 5) Stream every page the monitor hasn't already preserved.
     if (result == Status::Ok) {
-        for (const Region& r : d.regions) {
+        for (const Region& r : regions) {
             for (std::size_t p = 0; p < r.pages(); ++p) {
                 const std::size_t global_page = r.page_base + p;
-                if (!d.claim_page(global_page)) {
-                    continue;  // monitor already preserved this page
-                }
+                if (!claim_page(global_page)) { continue; }  // monitor got it first
                 const std::uintptr_t page_addr = r.start + p * kPageSize;
-                if (!d.dump_one_page(r, page_addr, d.dumper_scratch)) {
+                if (!dump_one_page(r, page_addr, dumper_scratch)) {
                     result = Status::WriteError;
                     break;
                 }
-                // Already-dumped mutable page: drop WP so writers stop faulting.
-                if (r.wp) { d.clear_wp(page_addr, kPageSize); }
+                if (r.wp) { clear_wp(page_addr, kPageSize); }
             }
             if (result != Status::Ok) { break; }
         }
     }
 
-    // 5) Tear down this dump's protection and state.
-    d.unregister_all();
-    ::fsync(d.out_fd);
-    ::close(d.out_fd);
-    d.out_fd = -1;
-    d.dumping.store(false, std::memory_order_release);
+    // 6) Tear down this dump's protection and state.
+    unregister_all();
+    ::fsync(out_fd);
+    ::close(out_fd);
+    out_fd = -1;
 
-    if (result != Status::Ok && d.last_error.empty()) {
-        d.set_err("core write failed", 0);
+    if (result != Status::Ok && last_error.empty()) {
+        set_err("core write failed", 0);
     } else if (result == Status::Ok) {
-        d.last_error.clear();
+        last_error.clear();
     }
+    return result;
+}
+
+Status Dumper::Trigger(const std::string& out_path)
+{
+    Impl& d = *m_impl;
+    if (!d.armed) { d.set_err("not armed", 0); return Status::NotArmed; }
+
+    bool expected = false;
+    if (!d.dumping.compare_exchange_strong(expected, true)) {
+        d.set_err("a dump is already running", 0);
+        return Status::AlreadyRunning;
+    }
+
+    // Hand the job to the dumper thread. The caller's thread does NOTHING that
+    // touches a WP-protected page from here until the dump completes -- it only
+    // blocks reading an eventfd, so it can never self-fault.
+    d.pending_path = out_path;
+    d.dump_done.store(false, std::memory_order_release);
+    {
+        const std::uint64_t one = 1;
+        (void)!::write(d.run_evt, &one, sizeof one);
+    }
+
+    // Wait for completion on the done eventfd (no heap/condvar touches).
+    std::uint64_t ticks = 0;
+    while (!d.dump_done.load(std::memory_order_acquire)) {
+        const ssize_t n = ::read(d.done_evt, &ticks, sizeof ticks);
+        if (n < 0 && errno == EINTR) { continue; }
+        if (n < 0) { break; }
+    }
+
+    const Status result = static_cast<Status>(d.dump_result.load(std::memory_order_relaxed));
+    d.dumping.store(false, std::memory_order_release);
     return result;
 }
 
@@ -652,11 +841,14 @@ Status Dumper::Shutdown()
     Impl& d = *m_impl;
     if (!d.armed) { return Status::NotArmed; }
 
-    // Ask the monitor to exit and join it.
+    // Ask both worker threads to exit. The eventfd is never drained by the
+    // loops (they only break on POLLIN), so a single post stays readable and
+    // both threads observe it.
     if (d.shutdown_evt >= 0) {
         const std::uint64_t one = 1;
         (void)!::write(d.shutdown_evt, &one, sizeof one);
     }
+    if (d.dumper.joinable())  { d.dumper.join(); }
     if (d.monitor.joinable()) { d.monitor.join(); }
 
     d.unregister_all();
@@ -669,11 +861,20 @@ Status Dumper::Shutdown()
     }
     d.dumper_scratch = d.monitor_scratch = nullptr;
 
+    if (d.claim_words != nullptr) {
+        ::munmap(d.claim_words, d.claim_words_bytes);
+        d.claim_words = nullptr;
+        d.claim_words_count = 0;
+    }
+
     if (d.shutdown_evt >= 0) { ::close(d.shutdown_evt); d.shutdown_evt = -1; }
+    if (d.run_evt >= 0)      { ::close(d.run_evt);      d.run_evt = -1; }
+    if (d.done_evt >= 0)     { ::close(d.done_evt);     d.done_evt = -1; }
+    if (d.pagemap_fd >= 0)   { ::close(d.pagemap_fd);   d.pagemap_fd = -1; }
     if (d.uffd >= 0)         { ::close(d.uffd);         d.uffd = -1; }
 
     d.regions.clear();
-    d.claim_words.clear();
+    d.engine_range_count = 0;
     d.armed = false;
     return Status::Ok;
 }

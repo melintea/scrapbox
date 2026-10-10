@@ -66,6 +66,46 @@ readelf -l /tmp/ondemand.core         # PT_LOAD / PT_NOTE segments
 gdb /path/to/uffd_coredump_demo /tmp/ondemand.core   # open as a core
 ```
 
+## Verified on WSL2 (kernel 5.15, g++ 13.3)
+
+Built with `-Wall -Wextra -Wpedantic` (no warnings) and exercised end to end:
+
+- **Deadlock-free under write pressure.** The demo triggers a dump while 4
+  mutator threads hammer a 64 MiB buffer; the dump completes (~200 ms) and the
+  process exits cleanly. Earlier revisions deadlocked — see "Root-cause notes".
+- **Structurally valid core.** `readelf -h/-l` reports `Type: CORE`, 1 `PT_NOTE`
+  + 41 `PT_LOAD` segments with correct vaddr/size/flags; gdb opens it as
+  `elf64-x86-64` and maps every segment. (gdb warns "Couldn't find
+  general-purpose registers" — expected, the `PT_NOTE` is intentionally empty.)
+- **Correct contents.** `pattern_demo` fills a buffer with `0xAB`, dumps, and
+  gdb reads the bytes back out of the core at the buffer's address as `0xAB` —
+  the dump captures real memory, not zeros.
+
+Reproduce (requires root to toggle the sysctl on a hardened kernel):
+
+```sh
+sudo bash run_as_root.sh         # build+run demo under write pressure
+sudo bash inspect_core.sh        # readelf + gdb structural check
+sudo bash verify_contents.sh     # pattern round-trip through the core
+sudo bash finalize.sh            # restore sysctl, strict-warning rebuild
+```
+
+## Root-cause notes (two bugs found and fixed during bring-up)
+
+1. **Non-resident pages are invisible to WP.** `probe_fault.c` demonstrates that
+   WP-protecting a lazily-allocated (non-resident) page delivers *no* userfault
+   on first write — the kernel zero-fills it as an ordinary minor fault. So the
+   dumper now protects only *resident* pages (via `/proc/self/pagemap`); a
+   non-resident page's value at T is zero and needs no protection.
+2. **The resolver must not fault on its own memory.** The monitor/dumper write
+   the claim bitmap and scratch pages while resolving faults. When those lived
+   on the glibc heap — itself a WP-protected region — the monitor self-faulted
+   and the whole process wedged (every thread parked in `handle_userfault`;
+   captured with `diagnose_wchan.sh`). Fixed by moving the bitmap and scratch
+   into dedicated `mmap` regions explicitly excluded from WP registration, and
+   running the dump on a dedicated thread so the caller's stack is never
+   protected.
+
 ## Known limitations / next steps
 
 - **Notes are minimal.** The `PT_NOTE` segment is emitted empty. A production
