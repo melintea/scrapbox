@@ -1,0 +1,72 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+
+abstract class ShapeConcept {
+  + {abstract} draw() const : void
+  + {abstract} ~ShapeConcept()  <<virtual, = default>>
+}
+
+class "ShapeModel<ShapeT, DrawStrategy = DefaultDrawer>" as ShapeModel <<template>> {
+  + using DrawStrategy = std::function<void(ShapeT const&)>
+  - shape_ : ShapeT
+  - drawer_ : DrawStrategy
+  + ShapeModel(shape : ShapeT, drawer : DrawStrategy = DefaultDrawer{}) <<explicit>>
+  + draw() const : void <<override>>
+}
+
+struct DefaultDrawer {
+  + operator()<T>(obj : T const&) const : void
+}
+
+class Circle {
+  - radius_ : double
+  + Circle(radius : double) <<explicit>>
+  + radius() const : double
+}
+
+class Square {
+  - side_ : double
+  + Square(side : double) <<explicit>>
+  + side() const : double
+}
+
+class OpenGLDrawStrategy {
+  + OpenGLDrawStrategy(...) <<explicit>>
+  + operator()(circle : Circle const&) const : void
+  + operator()(square : Square const&) const : void
+}
+
+class "std::function<void(ShapeT const&)>" as StdFunction <<external>>
+class "std::vector<std::unique_ptr<ShapeConcept>>" as Shapes <<main.cpp: using Shapes>>
+
+class "ShapeModel<Circle, OpenGLDrawStrategy>" as CircleModel <<bind>>
+class "ShapeModel<Square, OpenGLDrawStrategy>" as SquareModel <<bind>>
+class "ShapeModel<int>" as IntModel <<bind>>
+
+note "free function in main.cpp:\nint draw(int i)\n(found via ADL-less unqualified call\nfrom DefaultDrawer for int)" as NDraw
+
+ShapeConcept <|-- ShapeModel
+ShapeModel *-- "1" StdFunction : drawer_
+ShapeModel *-- "1" "ShapeT" : shape_
+ShapeModel ..> DefaultDrawer : default argument
+
+ShapeModel <|.. CircleModel : <<bind>> ShapeT=Circle,\nDrawStrategy=OpenGLDrawStrategy
+ShapeModel <|.. SquareModel : <<bind>> ShapeT=Square,\nDrawStrategy=OpenGLDrawStrategy
+ShapeModel <|.. IntModel : <<bind>> ShapeT=int
+
+CircleModel *-- Circle
+SquareModel *-- Square
+CircleModel *-- OpenGLDrawStrategy : drawer_ (via std::function)
+SquareModel *-- OpenGLDrawStrategy : drawer_ (via std::function)
+
+OpenGLDrawStrategy ..> Circle
+OpenGLDrawStrategy ..> Square
+DefaultDrawer ..> NDraw : draw(obj)
+
+Shapes o-- "0..*" ShapeConcept : unique_ptr
+Shapes ..> CircleModel : make_unique
+Shapes ..> SquareModel : make_unique
+Shapes ..> IntModel : make_unique
+
+@enduml
