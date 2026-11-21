@@ -1,7 +1,10 @@
 //---- <OpenGLDrawStrategy.h> ----------------
-#include <Circle>
-#include <Square>
-#include /* OpenGL graphics library headers */
+#include <Circle.h>
+#include <Square.h>
+//#include /* OpenGL graphics library headers */
+
+#pragma once
+
 
 class OpenGLDrawStrategy
 {

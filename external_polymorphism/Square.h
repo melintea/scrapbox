@@ -1,5 +1,7 @@
 //---- <Square.h> ----------------
 
+#pragma once
+
 class Square
 {
     public:

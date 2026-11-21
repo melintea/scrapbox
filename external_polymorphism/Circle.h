@@ -1,5 +1,7 @@
 //---- <Circle.h> ----------------
 
+#pragma once
+
 class Circle
 {
     public:

@@ -5,6 +5,12 @@
 #include <memory>
 #include <vector>
 
+int draw( int i )
+{
+    // ... drawing an int, for instance by printing it to the command line
+    return 0;
+}
+
 int main()
 {
     using Shapes = std::vector<std::unique_ptr<ShapeConcept>>;
@@ -13,10 +19,7 @@ int main()
 
     Shapes shapes{};
     
-    // Creating some shapes, each one
-    //
-    equipped with an OpenGL drawing strategy
-        shapes.emplace_back(
+    shapes.emplace_back(
                 std::make_unique<CircleModel>(
                     Circle{2.3}, OpenGLDrawStrategy(/*...red...*/) ) );
     shapes.emplace_back(
@@ -25,24 +28,13 @@ int main()
     shapes.emplace_back(
             std::make_unique<CircleModel>(
                 Circle{4.1}, OpenGLDrawStrategy(/*...blue...*/) ) );
+    shapes.emplace_back( std::make_unique<ShapeModel<int>>( 42 ) );
     
-                // Drawing all shapes
     for( auto const& shape : shapes )
     {
         shape->draw();
     }
     
-    return EXIT_SUCCESS;
-}
-
-int draw( int i )
-{
-    // ... drawing an int, for instance by printing it to the command line
-}
-int main()
-{
-    auto shape = std::make_unique<ShapeModel<int>>( 42 );
-    shape->draw(); // Drawing the integer
     return EXIT_SUCCESS;
 }
 
