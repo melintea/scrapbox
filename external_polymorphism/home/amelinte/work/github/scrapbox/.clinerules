@@ -1,0 +1,8 @@
+# Tool-call argument names (strict)
+
+- `read_file` requires `filepath` (NOT `path`).
+- `create_new_file` requires `filepath` and `contents`.
+- `edit_existing_file` / `single_find_and_replace` require `filepath`.
+- `ls` requires `dirPath`.
+
+Always double-check the exact argument name from the tool definition before calling.
